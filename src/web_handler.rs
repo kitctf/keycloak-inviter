@@ -3,28 +3,19 @@ use crate::web::{AppState, AuthedUser};
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Extension, Form, Json};
-use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
+use axum_extra::extract::CookieJar;
 use keycloak::types::TypeMap;
 use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::json;
-use snafu::{Location, Report, ResultExt, Snafu, location};
-use std::error::Error;
+use snafu::{location, Location, Report, ResultExt, Snafu};
 use tracing::{info, warn};
 
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
 pub enum WebError {
-    #[snafu(display("Error {message} at {location}"))]
-    AnythingErr {
-        status: StatusCode,
-        message: String,
-        source: Box<dyn Error + Sync + Send>,
-        #[snafu(implicit)]
-        location: Location,
-    },
     #[snafu(display("Error {message} at {location}"))]
     Anything {
         status: StatusCode,
@@ -49,9 +40,6 @@ pub enum WebError {
 impl IntoResponse for WebError {
     fn into_response(self) -> Response {
         let (status, msg) = match &self {
-            WebError::AnythingErr {
-                status, message, ..
-            } => (*status, message.clone()),
             WebError::Anything {
                 status, message, ..
             } => (*status, message.clone()),
@@ -125,11 +113,9 @@ pub async fn login_oidc_callback(
         Ok(user) => user,
         Err(e) => {
             info!(flow_id = %flow_id, error = %Report::from_error(&e), "OIDC login failed");
-            return Err(WebError::AnythingErr {
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                message: "OIDC login failed".to_string(),
+            return Err(WebError::Oidc {
                 location: location!(),
-                source: Box::new(e),
+                source: e,
             });
         }
     };
