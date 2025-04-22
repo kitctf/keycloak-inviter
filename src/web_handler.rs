@@ -1,16 +1,16 @@
 use crate::oidc::{OidcError, OidcFlowId};
-use crate::web::AppState;
+use crate::web::{AppState, AuthedUser};
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::{Form, Json};
-use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
+use axum::{Extension, Form, Json};
 use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
 use keycloak::types::TypeMap;
 use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::json;
-use snafu::{location, Location, Report, ResultExt, Snafu};
+use snafu::{Location, Report, ResultExt, Snafu, location};
 use std::error::Error;
 use tracing::{info, warn};
 
@@ -48,13 +48,13 @@ pub enum WebError {
 
 impl IntoResponse for WebError {
     fn into_response(self) -> Response {
-        let (status, msg) = match self {
+        let (status, msg) = match &self {
             WebError::AnythingErr {
                 status, message, ..
-            } => (status, message),
+            } => (*status, message.clone()),
             WebError::Anything {
                 status, message, ..
-            } => (status, message),
+            } => (*status, message.clone()),
             WebError::Oidc { source, .. } => {
                 let status = StatusCode::INTERNAL_SERVER_ERROR;
                 let message = format!("OIDC error: {}", source);
@@ -66,6 +66,10 @@ impl IntoResponse for WebError {
                 (status, message)
             }
         };
+
+        if status == StatusCode::INTERNAL_SERVER_ERROR {
+            info!(status = %status, error = %Report::from_error(&self), "Internal server error");
+        }
 
         (status, Json(json!({"message": msg}))).into_response()
     }
@@ -150,8 +154,18 @@ pub async fn login_oidc_callback(
 
 pub async fn invite_user(
     State(state): State<AppState>,
+    Extension(authed_user): Extension<AuthedUser>,
     Form(payload): Form<InvitePayload>,
 ) -> Result<(), WebError> {
+    info!(
+        triggering_sub = %authed_user.sub,
+        triggering_name = %authed_user.user_name,
+        target_email = %payload.email,
+        target_first_name = %payload.first_name.as_deref().unwrap_or("N/A"),
+        target_last_name = %payload.last_name.as_deref().unwrap_or("N/A"),
+        "Inviting user"
+    );
+
     let client = reqwest::Client::new();
     let token = KeycloakAdminToken::acquire_custom_realm(
         &state.keycloak_config.keycloak_url,
@@ -168,11 +182,11 @@ pub async fn invite_user(
     let admin = KeycloakAdmin::new(&state.keycloak_config.keycloak_url, token, client);
 
     let mut type_map = TypeMap::new();
-    type_map.insert("email".to_string(), payload.email);
-    if let Some(first_name) = payload.first_name {
+    type_map.insert("email".to_string(), payload.email.clone());
+    if let Some(first_name) = payload.first_name.clone() {
         type_map.insert("firstName".to_string(), first_name);
     };
-    if let Some(last_name) = payload.last_name {
+    if let Some(last_name) = payload.last_name.clone() {
         type_map.insert("lastName".to_string(), last_name);
     }
 
@@ -196,6 +210,15 @@ pub async fn invite_user(
             location: location!(),
         });
     }
+
+    info!(
+        triggering_sub = %authed_user.sub,
+        triggering_name = %authed_user.user_name,
+        target_email = %payload.email,
+        target_first_name = %payload.first_name.as_deref().unwrap_or("N/A"),
+        target_last_name = %payload.last_name.as_deref().unwrap_or("N/A"),
+        "Invited user"
+    );
 
     Ok(())
 }

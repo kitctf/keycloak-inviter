@@ -27,6 +27,12 @@ pub struct AppState {
     pub oidc: Oidc,
 }
 
+#[derive(Debug, Clone)]
+pub struct AuthedUser {
+    pub user_name: String,
+    pub sub: String,
+}
+
 pub async fn start_server(oidc_config: OidcConfig, oidc: Oidc, keycloak_config: KeycloakConfig) {
     let state = AppState {
         oidc_config,
@@ -68,7 +74,7 @@ pub async fn start_server(oidc_config: OidcConfig, oidc: Oidc, keycloak_config: 
 async fn validate_access(
     state: &AppState,
     cookie: Cookie,
-    request: Request,
+    mut request: Request,
     next: Next,
 ) -> Result<Response, WebError> {
     let Some(token) = cookie.get("access_token") else {
@@ -99,6 +105,15 @@ async fn validate_access(
             location: location!(),
         });
     }
+
+    request.extensions_mut().insert(AuthedUser {
+        user_name: res.username().unwrap_or("no username").to_string(),
+        sub: res
+            .sub()
+            .expect("No subject in keycloak token response")
+            .to_string(),
+    });
+
     Ok(next.run(request).await)
 }
 
