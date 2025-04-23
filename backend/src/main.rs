@@ -1,4 +1,5 @@
 use crate::oidc::Oidc;
+use tracing::info;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -27,13 +28,10 @@ pub struct KeycloakConfig {
 impl KeycloakConfig {
     pub fn from_env() -> Self {
         Self {
-            keycloak_url: std::env::var("KEYCLOAK_URL").expect("Expected 'KEYCLOAK_URL' env var"),
-            keycloak_user: std::env::var("KEYCLOAK_USER")
-                .expect("Expected 'KEYCLOAK_USER' env var"),
-            keycloak_password: std::env::var("KEYCLOAK_PASSWORD")
-                .expect("Expected 'KEYCLOAK_PASSWORD' env var"),
-            keycloak_realm: std::env::var("KEYCLOAK_REALM")
-                .unwrap_or_else(|_| "kitctf".to_string()),
+            keycloak_url: get_env("KEYCLOAK_URL"),
+            keycloak_user: get_env("KEYCLOAK_USER"),
+            keycloak_password: get_env("KEYCLOAK_PASSWORD"),
+            keycloak_realm: get_env_def("KEYCLOAK_REALM", "kitctf"),
         }
     }
 }
@@ -49,17 +47,32 @@ async fn main() {
         .init();
 
     let config = OidcConfig {
-        client_id: std::env::var("CLIENT_ID").expect("Expected 'CLIENT_ID' env var"),
-        client_secret: std::env::var("CLIENT_SECRET").expect("Expected 'CLIENT_SECRET' env var"),
-        issuer_url: "https://sso.kitctf.de/realms/kitctf".to_string(),
-        redirect_url: std::env::var("REDIRECT_URL").expect("Expected 'REDIRECT_URL' env var"),
-        introspect_url:
-            "https://sso.kitctf.de/realms/kitctf/protocol/openid-connect/token/introspect"
-                .to_string(),
+        client_id: get_env("CLIENT_ID"),
+        client_secret: get_env("CLIENT_SECRET"),
+        issuer_url: get_env_def("ISSUER_URL", "https://sso.kitctf.de/realms/kitctf"),
+        redirect_url: get_env("REDIRECT_URL"),
+        introspect_url: get_env_def(
+            "INTROSPECT_URL",
+            "https://sso.kitctf.de/realms/kitctf/protocol/openid-connect/token/introspect",
+        ),
         scopes: vec!["openid".to_string(), "profile".to_string()],
     };
 
     let oidc = Oidc::build_new(config.clone()).await.unwrap();
 
     web::start_server(config, oidc, KeycloakConfig::from_env()).await;
+}
+
+fn get_env(key: &str) -> String {
+    std::env::var(key).unwrap_or_else(|_| panic!("Expected {} env var", key))
+}
+
+fn get_env_def(key: &str, default: &str) -> String {
+    match std::env::var(key) {
+        Ok(val) => val,
+        Err(_) => {
+            info!("Using default value for {}: `{}`", key, default);
+            default.to_string()
+        }
+    }
 }
