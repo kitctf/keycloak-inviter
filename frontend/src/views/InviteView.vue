@@ -40,7 +40,10 @@
               <FormMessage />
             </FormItem>
           </FormField>
-          <Button class="w-fit cursor-pointer" type="submit">Invite user</Button>
+          <Button class="w-fit cursor-pointer" type="submit" :disabled="sendingInvite">
+            <LucideLoaderCircle class="animate-spin" v-show="false" />
+            Invite user
+          </Button>
         </form>
       </CardContent>
     </Card>
@@ -57,17 +60,20 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { nextTick, onMounted, toRefs } from 'vue'
+import { nextTick, onMounted, ref, toRefs } from 'vue'
 import type { AboutMe } from '@/lib/types.ts'
 import { BACKEND_URL } from '@/lib/fetching.ts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LucideLoaderCircle } from 'lucide-vue-next'
 import PageContainer from '@/components/PageContainer.vue'
 import { fetchAddUser } from '@/lib/network.ts'
 import { toTypedSchema } from '@vee-validate/zod'
 import { toast } from 'vue-sonner'
 import { useForm } from 'vee-validate'
 import { z } from 'zod'
+
+const sendingInvite = ref(false)
 
 const props = defineProps<{
   userInfo: AboutMe
@@ -99,14 +105,19 @@ onMounted(() => {
 })
 
 const onSubmit = form.handleSubmit(async (values) => {
-  sessionStorage.setItem('user', JSON.stringify(values))
-  const response = await fetchAddUser(values)
-  if (response === 'success') {
-    toast.success('Added user')
-    form.resetForm()
-    sessionStorage.removeItem('user')
-    return
+  sendingInvite.value = true
+  try {
+    sessionStorage.setItem('user', JSON.stringify(values))
+    const response = await fetchAddUser(values)
+    if (response === 'success') {
+      toast.success('Added user')
+      form.resetForm()
+      sessionStorage.removeItem('user')
+      return
+    }
+    window.location.href = `${BACKEND_URL}/login`
+  } finally {
+    sendingInvite.value = false
   }
-  window.location.href = `${BACKEND_URL}/login`
 })
 </script>

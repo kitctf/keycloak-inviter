@@ -2,15 +2,15 @@ use crate::oidc::{OidcError, OidcFlowId};
 use crate::web::{AppState, AuthedUser};
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::{debug_handler, Extension, Form, Json};
-use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
+use axum::{Extension, Json};
 use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
 use keycloak::types::TypeMap;
 use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use snafu::{location, Location, Report, ResultExt, Snafu};
+use snafu::{Location, Report, ResultExt, Snafu, location};
 use tracing::{info, warn};
 
 #[derive(Debug, Snafu)]

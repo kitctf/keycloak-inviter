@@ -10,7 +10,9 @@
         Loading...
       </CardContent>
       <CardContent v-else>
-        <LoginButton />
+        <a :href="BACKEND_URL + '/login'">
+          <Button class="cursor-pointer">Log in</Button>
+        </a>
       </CardContent>
     </Card>
   </PageContainer>
@@ -18,7 +20,8 @@
 
 <script setup lang="ts">
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import LoginButton from '@/components/LoginButton.vue'
+import { BACKEND_URL } from '@/lib/fetching.ts'
+import { Button } from '@/components/ui/button'
 import { LucideLoaderCircle } from 'lucide-vue-next'
 import PageContainer from '@/components/PageContainer.vue'
 import { toRefs } from 'vue'
