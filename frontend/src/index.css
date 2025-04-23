@@ -117,7 +117,32 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  .container {
+    @apply px-8 2xl:max-w-[1400px] m-auto;
+  }
+
+  .gradient-primary {
+    @apply bg-gradient-to-r from-blue-500 via-violet-500 to-rose-600 bg-clip-text text-transparent animate-gradient-x;
+  }
+}
+
+@theme {
+  --animate-gradient-x: gradient-x 4s ease infinite;
+
+  @keyframes gradient-x {
+    0%,
+    100% {
+      background-size: 200% 200%;
+      background-position: left center;
+    }
+    50% {
+      background-size: 200% 200%;
+      background-position: right center;
+    }
   }
 }

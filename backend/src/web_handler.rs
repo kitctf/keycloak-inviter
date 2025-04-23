@@ -2,13 +2,13 @@ use crate::oidc::{OidcError, OidcFlowId};
 use crate::web::{AppState, AuthedUser};
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::{Extension, Form, Json};
+use axum::{debug_handler, Extension, Form, Json};
 use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
 use axum_extra::extract::CookieJar;
 use keycloak::types::TypeMap;
 use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError};
 use reqwest::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use snafu::{location, Location, Report, ResultExt, Snafu};
 use tracing::{info, warn};
@@ -84,7 +84,7 @@ pub async fn login_oidc_callback(
     State(state): State<AppState>,
     cookies: CookieJar,
     Query(oidc_callback_payload): Query<OidcCallbackPayload>,
-) -> Result<CookieJar, WebError> {
+) -> Result<(CookieJar, Redirect), WebError> {
     let flow_id = match cookies.get("oidc_flow_id") {
         Some(flow_id) => flow_id,
         None => {
@@ -127,21 +127,24 @@ pub async fn login_oidc_callback(
         "OIDC login successful"
     );
 
-    Ok(cookies.remove("oidc_flow_id").add(
-        Cookie::build(("access_token", user.access_token))
-            .http_only(true)
-            .secure(true)
-            .expires(Expiration::Session)
-            .same_site(SameSite::Lax)
-            .path("/")
-            .build(),
+    Ok((
+        cookies.remove("oidc_flow_id").add(
+            Cookie::build(("access_token", user.access_token))
+                .http_only(true)
+                .secure(true)
+                .expires(Expiration::Session)
+                .same_site(SameSite::Lax)
+                .path("/")
+                .build(),
+        ),
+        Redirect::temporary(&state.frontend_url),
     ))
 }
 
 pub async fn invite_user(
     State(state): State<AppState>,
     Extension(authed_user): Extension<AuthedUser>,
-    Form(payload): Form<InvitePayload>,
+    Json(payload): Json<InvitePayload>,
 ) -> Result<(), WebError> {
     info!(
         triggering_sub = %authed_user.sub,
@@ -209,6 +212,15 @@ pub async fn invite_user(
     Ok(())
 }
 
+pub async fn about_me(
+    Extension(authed_user): Extension<AuthedUser>,
+) -> Result<Json<AboutMeResponse>, WebError> {
+    Ok(Json(AboutMeResponse {
+        sub: authed_user.sub,
+        user_name: authed_user.user_name,
+    }))
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InvitePayload {
@@ -221,4 +233,11 @@ pub struct InvitePayload {
 pub struct OidcCallbackPayload {
     state: String,
     code: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AboutMeResponse {
+    sub: String,
+    user_name: String,
 }

@@ -59,8 +59,9 @@ async fn main() {
     };
 
     let oidc = Oidc::build_new(config.clone()).await.unwrap();
+    let frontend_url = get_env("FRONTEND_URL");
 
-    web::start_server(config, oidc, KeycloakConfig::from_env()).await;
+    web::start_server(frontend_url, config, oidc, KeycloakConfig::from_env()).await;
 }
 
 fn get_env(key: &str) -> String {
