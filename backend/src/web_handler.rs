@@ -39,24 +39,15 @@ pub enum WebError {
 
 impl IntoResponse for WebError {
     fn into_response(self) -> Response {
-        let (status, msg) = match &self {
-            WebError::Anything {
-                status, message, ..
-            } => (*status, message.clone()),
-            WebError::Oidc { source, .. } => {
-                let status = StatusCode::INTERNAL_SERVER_ERROR;
-                let message = format!("OIDC error: {}", source);
-                (status, message)
-            }
-            WebError::Keycloak { source, .. } => {
-                let status = StatusCode::INTERNAL_SERVER_ERROR;
-                let message = format!("Keycloak error: {}", source);
-                (status, message)
-            }
+        let status = match &self {
+            WebError::Anything { status, .. } => *status,
+            WebError::Oidc { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            WebError::Keycloak { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
+        let msg = Report::from_error(&self).to_string();
         if status == StatusCode::INTERNAL_SERVER_ERROR {
-            info!(status = %status, error = %Report::from_error(&self), "Internal server error");
+            info!(status = %status, error = %msg, "Internal server error");
         }
 
         (status, Json(json!({"message": msg}))).into_response()

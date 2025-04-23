@@ -313,9 +313,6 @@ impl Oidc {
             .await
             .context(AuthTokenExchangeRequestSnafu)?;
 
-        println!("Token response: {:?}", token_response);
-        println!("{}", token_response.access_token().clone().into_secret());
-
         // Extract the ID token claims after verifying its authenticity and nonce.
         let id_token = token_response.id_token().context(NoIdTokenReceivedSnafu)?;
         let claims: &CoreIdTokenClaims = id_token

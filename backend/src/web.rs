@@ -38,6 +38,7 @@ pub struct AuthedUser {
 
 pub async fn start_server(
     frontend_url: String,
+    listen_address: String,
     oidc_config: OidcConfig,
     oidc: Oidc,
     keycloak_config: KeycloakConfig,
@@ -69,7 +70,7 @@ pub async fn start_server(
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(listen_address).await.unwrap();
     info!("listening on {}", listener.local_addr().unwrap());
 
     axum::serve(
