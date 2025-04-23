@@ -33,11 +33,11 @@ export async function fetchAddUser(payload: {
       },
       body: JSON.stringify(payload),
     },
-    { extraSuccessStatus: [401] },
+    { extraSuccessStatus: [401], hideError: true },
   )
 
-  if (response.status === 401) {
-    return 'unauthorized'
+  if (response.status === 200) {
+    return 'success'
   }
-  return 'success'
+  return 'unauthorized'
 }

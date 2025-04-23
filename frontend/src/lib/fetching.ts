@@ -16,6 +16,7 @@ export async function fetchWithError(
   init?: RequestInit,
   extra?: {
     extraSuccessStatus: number[]
+    hideError?: boolean
   },
 ): Promise<Response> {
   if (!url.startsWith('http')) {
@@ -34,9 +35,11 @@ export async function fetchWithError(
     } catch {}
 
     const error = new FetchError(text, response.status)
-    toast.error('Error during request', {
-      description: 'The error was ' + error,
-    })
+    if (!extra?.hideError) {
+      toast.error('Error during request', {
+        description: 'The error was ' + error,
+      })
+    }
     throw error
   }
   return response

@@ -108,9 +108,18 @@ const onSubmit = form.handleSubmit(async (values) => {
   sendingInvite.value = true
   try {
     sessionStorage.setItem('user', JSON.stringify(values))
-    const response = await fetchAddUser(values)
+    const response = await toast
+      .promise(fetchAddUser(values), {
+        description: `Adding user ${values.email}`,
+        loading: 'Adding user...',
+        success: () => 'User added',
+        error: (data: unknown) => {
+          return (data as Error).message || 'Unknown error'
+        },
+      })!
+      .unwrap()
+
     if (response === 'success') {
-      toast.success('Added user')
       form.resetForm()
       sessionStorage.removeItem('user')
       return
