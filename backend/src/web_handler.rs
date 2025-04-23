@@ -1,3 +1,4 @@
+use crate::WebhookConfig;
 use crate::oidc::{OidcError, OidcFlowId};
 use crate::web::{AppState, AuthedUser};
 use axum::extract::{Query, State};
@@ -146,6 +147,8 @@ pub async fn invite_user(
         "Inviting user"
     );
 
+    hooks_invited_user(authed_user.clone(), payload.clone(), state.webhook_config).await;
+
     let client = reqwest::Client::new();
     let token = KeycloakAdminToken::acquire_custom_realm(
         &state.keycloak_config.keycloak_url,
@@ -203,6 +206,52 @@ pub async fn invite_user(
     Ok(())
 }
 
+async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, config: WebhookConfig) {
+    let url = match &config.url {
+        Some(url) => url,
+        None => return,
+    };
+    let mut text = format!("Invited user {}", target.email);
+    let names = target
+        .first_name
+        .iter()
+        .chain(target.last_name.iter())
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    if !names.is_empty() {
+        text += " (";
+        text += &names.join(" ");
+        text += ")";
+    }
+
+    let response = reqwest::Client::new()
+        .post(url)
+        .json(&json!({
+            "text": text,
+            "username": triggering.user_name,
+            "icon_emoji": "woah"
+        }))
+        .send()
+        .await;
+
+    let response = match response {
+        Err(e) => {
+            warn!(error = %Report::from_error(&e), "Failed to send webhook");
+            return;
+        }
+        Ok(e) => e,
+    };
+
+    let status = response.status();
+    if !status.is_success() {
+        let response = response.text().await.unwrap_or("N/A".to_string());
+        warn!(status = %status, response = %response, "Failed to send webhook");
+        return;
+    }
+
+    info!(status = %status, target_email = %target.email, "Webhook sent successfully");
+}
+
 pub async fn about_me(
     Extension(authed_user): Extension<AuthedUser>,
 ) -> Result<Json<AboutMeResponse>, WebError> {
@@ -212,7 +261,7 @@ pub async fn about_me(
     }))
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InvitePayload {
     email: String,

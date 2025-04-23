@@ -2,7 +2,7 @@ use crate::oidc::Oidc;
 use crate::web_handler::{
     OidcSnafu, WebError, about_me, invite_user, login_oidc_callback, login_redirect,
 };
-use crate::{KeycloakConfig, OidcConfig};
+use crate::{KeycloakConfig, OidcConfig, ServiceConfig, WebhookConfig};
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
@@ -28,6 +28,7 @@ pub struct AppState {
     pub keycloak_config: KeycloakConfig,
     pub oidc: Oidc,
     pub frontend_url: String,
+    pub webhook_config: WebhookConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -37,8 +38,8 @@ pub struct AuthedUser {
 }
 
 pub async fn start_server(
-    frontend_url: String,
-    listen_address: String,
+    service_config: ServiceConfig,
+    webhook_config: WebhookConfig,
     oidc_config: OidcConfig,
     oidc: Oidc,
     keycloak_config: KeycloakConfig,
@@ -47,7 +48,8 @@ pub async fn start_server(
         oidc_config,
         oidc,
         keycloak_config,
-        frontend_url,
+        frontend_url: service_config.frontend_url,
+        webhook_config,
     };
     let authed = middleware::from_fn_with_state(
         state.clone(),
@@ -70,7 +72,9 @@ pub async fn start_server(
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(listen_address).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(service_config.listen_address)
+        .await
+        .unwrap();
     info!("listening on {}", listener.local_addr().unwrap());
 
     axum::serve(

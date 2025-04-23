@@ -36,6 +36,37 @@ impl KeycloakConfig {
     }
 }
 
+#[derive(Clone)]
+pub struct ServiceConfig {
+    frontend_url: String,
+    listen_address: String,
+}
+
+impl ServiceConfig {
+    pub fn from_env() -> Self {
+        Self {
+            frontend_url: get_env("FRONTEND_URL"),
+            listen_address: get_env_def("LISTEN_ADDRESS", "0.0.0.0:3000"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct WebhookConfig {
+    pub url: Option<String>,
+}
+
+impl WebhookConfig {
+    pub fn from_env() -> Self {
+        if let Ok(val) = std::env::var("WEBHOOK_URL") {
+            return Self { url: Some(val) };
+        }
+
+        info!("No `WEBHOOK_URL` provided, skipping webhook");
+        Self { url: None }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     // Maybe: https://fasterthanli.me/articles/request-coalescing-in-async-rust#a-bit-of-tracing
@@ -46,7 +77,7 @@ async fn main() {
         )
         .init();
 
-    let config = OidcConfig {
+    let oidc_config = OidcConfig {
         client_id: get_env("CLIENT_ID"),
         client_secret: get_env("CLIENT_SECRET"),
         issuer_url: get_env_def("ISSUER_URL", "https://sso.kitctf.de/realms/kitctf"),
@@ -58,14 +89,14 @@ async fn main() {
         scopes: vec!["openid".to_string(), "profile".to_string()],
     };
 
-    let oidc = Oidc::build_new(config.clone()).await.unwrap();
-    let frontend_url = get_env("FRONTEND_URL");
-    let listen_address = get_env_def("LISTEN_ADDRESS", "0.0.0.0:3000");
+    let oidc = Oidc::build_new(oidc_config.clone()).await.unwrap();
+    let service_config = ServiceConfig::from_env();
+    let webhook_config = WebhookConfig::from_env();
 
     web::start_server(
-        frontend_url,
-        listen_address,
-        config,
+        service_config,
+        webhook_config,
+        oidc_config,
         oidc,
         KeycloakConfig::from_env(),
     )
