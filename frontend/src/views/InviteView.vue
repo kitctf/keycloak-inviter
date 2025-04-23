@@ -45,6 +45,12 @@
             Invite user
           </Button>
         </form>
+        <div
+          v-if="error"
+          class="bg-accent rounded-lg my-2 p-2 text-destructive-foreground whitespace-pre break-all"
+        >
+          {{ error }}
+        </div>
       </CardContent>
     </Card>
   </PageContainer>
@@ -74,6 +80,7 @@ import { useForm } from 'vee-validate'
 import { z } from 'zod'
 
 const sendingInvite = ref(false)
+const error = ref<string | null>(null)
 
 const props = defineProps<{
   userInfo: AboutMe
@@ -106,15 +113,18 @@ onMounted(() => {
 
 const onSubmit = form.handleSubmit(async (values) => {
   sendingInvite.value = true
+  error.value = null
+
   try {
     sessionStorage.setItem('user', JSON.stringify(values))
     const response = await toast
       .promise(fetchAddUser(values), {
-        description: `Adding user ${values.email}`,
-        loading: 'Adding user...',
-        success: () => 'User added',
+        description: `Inviting user ${values.email}`,
+        loading: 'Inviting user...',
+        success: () => 'User invited',
         error: (data: unknown) => {
-          return (data as Error).message || 'Unknown error'
+          error.value = (data as Error).message || 'Unknown error'
+          return 'Invite failed'
         },
       })!
       .unwrap()
@@ -122,6 +132,7 @@ const onSubmit = form.handleSubmit(async (values) => {
     if (response === 'success') {
       form.resetForm()
       sessionStorage.removeItem('user')
+      error.value = null
       return
     }
     window.location.href = `${BACKEND_URL}/login`
