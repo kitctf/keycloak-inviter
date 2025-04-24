@@ -1,17 +1,17 @@
-use crate::config::Secrets;
+use crate::config::{Config, Secrets};
 use crate::oidc::{OidcError, OidcFlowId};
 use crate::web::{AppState, AuthedUser};
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Extension, Json};
-use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
 use axum_extra::extract::CookieJar;
-use keycloak::types::TypeMap;
+use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
+use keycloak::types::{TypeMap, UserRepresentation};
 use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError};
-use reqwest::StatusCode;
+use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use snafu::{location, Location, Report, ResultExt, Snafu};
+use snafu::{Location, Report, ResultExt, Snafu, location};
 use tracing::{info, warn};
 
 #[derive(Debug, Snafu)]
@@ -149,20 +149,7 @@ pub async fn invite_user(
 
     hooks_invited_user(authed_user.clone(), payload.clone(), &config.secrets).await;
 
-    let client = reqwest::Client::new();
-    let token = KeycloakAdminToken::acquire_custom_realm(
-        &config.keycloak.url,
-        &config.secrets.keycloak_user,
-        &config.secrets.keycloak_password,
-        &config.keycloak.realm,
-        "admin-cli",
-        "password",
-        &client,
-    )
-    .await
-    .context(KeycloakSnafu)?;
-
-    let admin = KeycloakAdmin::new(&config.keycloak.url, token, client);
+    let admin = get_keycloak_admin(&config, Client::new()).await?;
 
     let mut type_map = TypeMap::new();
     type_map.insert("email".to_string(), payload.email.clone());
@@ -206,6 +193,22 @@ pub async fn invite_user(
     Ok(())
 }
 
+async fn get_keycloak_admin(config: &Config, client: Client) -> Result<KeycloakAdmin, WebError> {
+    let token = KeycloakAdminToken::acquire_custom_realm(
+        &config.keycloak.url,
+        &config.secrets.keycloak_user,
+        &config.secrets.keycloak_password,
+        &config.keycloak.realm,
+        "admin-cli",
+        "password",
+        &client,
+    )
+    .await
+    .context(KeycloakSnafu)?;
+
+    Ok(KeycloakAdmin::new(&config.keycloak.url, token, client))
+}
+
 async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, secrets: &Secrets) {
     let url = match &secrets.webhook_url {
         Some(url) => url,
@@ -224,7 +227,7 @@ async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, secre
         text += ")";
     }
 
-    let response = reqwest::Client::new()
+    let response = Client::new()
         .post(url)
         .json(&json!({
             "text": text,
@@ -261,6 +264,79 @@ pub async fn about_me(
     }))
 }
 
+pub async fn register_user(
+    State(state): State<AppState>,
+    Json(payload): Json<RegisterPayload>,
+) -> Result<(), WebError> {
+    let Some(config) = &state.config.register else {
+        return Err(WebError::Anything {
+            status: StatusCode::BAD_REQUEST,
+            message: "Register is not enabled".to_string(),
+            location: location!(),
+        });
+    };
+
+    let supplied_token = payload.token;
+    let token = match config.tokens.get(&supplied_token) {
+        Some(token) => token,
+        None => {
+            info!(
+                token = supplied_token,
+                email = payload.email,
+                username = payload.username,
+                "User submitted invalid token"
+            );
+            return Err(WebError::Anything {
+                status: StatusCode::BAD_REQUEST,
+                message: "Invalid token".to_string(),
+                location: location!(),
+            });
+        }
+    };
+
+    info!(
+        token = %supplied_token,
+        email = payload.email,
+        username = payload.username,
+        "Received valid token"
+    );
+
+    let admin = get_keycloak_admin(&state.config, Client::new()).await?;
+    let response = admin
+        .realm_users_post(
+            &state.config.keycloak.realm,
+            UserRepresentation {
+                username: Some(payload.username.clone()),
+                email: Some(payload.email.clone()),
+                attributes: Some(token.attributes.clone()),
+                ..Default::default()
+            },
+        )
+        .await
+        .context(KeycloakSnafu)?;
+    let response = response.into_response();
+
+    if !response.status().is_success() {
+        return Err(WebError::Anything {
+            status: response.status(),
+            message: format!(
+                "Failed to register user: {}",
+                response.text().await.unwrap_or("N/A".to_string())
+            ),
+            location: location!(),
+        });
+    }
+
+    info!(
+        token = %supplied_token,
+        email = payload.email,
+        username = payload.username,
+        "Registered user"
+    );
+
+    Ok(())
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InvitePayload {
@@ -280,4 +356,12 @@ pub struct OidcCallbackPayload {
 pub struct AboutMeResponse {
     sub: String,
     user_name: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterPayload {
+    email: String,
+    token: String,
+    username: String,
 }

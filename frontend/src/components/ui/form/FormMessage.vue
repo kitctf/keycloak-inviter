@@ -8,7 +8,7 @@ const props = defineProps<{
   class?: HTMLAttributes['class']
 }>()
 
-const { name, formMessageId } = useFormField()
+const { name, formMessageId, error } = useFormField()
 </script>
 
 <template>
@@ -19,4 +19,5 @@ const { name, formMessageId } = useFormField()
     :name="toValue(name)"
     :class="cn('text-destructive-foreground text-sm', props.class)"
   />
+  <p v-if="!error">&nbsp;</p>
 </template>

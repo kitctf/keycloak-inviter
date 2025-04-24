@@ -12,3 +12,11 @@ realm = "kitctf"
 [service]
 frontend_url = "http://localhost:5173"
 listen_address = "0.0.0.0:3000"
+
+[register.tokens.foobar]
+  user = ["hey"]
+  cool = ["yes"]
+
+[register.tokens.foobar2]
+  user = ["hey2"]
+  cool = ["yes2"]

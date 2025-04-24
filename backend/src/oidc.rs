@@ -1,4 +1,5 @@
 use crate::OidcConfig;
+use crate::config::Secrets;
 use derive_more::Display;
 use oauth2::basic::{BasicErrorResponseType, BasicRevocationErrorResponse};
 use oauth2::{
@@ -21,7 +22,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::debug;
-use crate::config::Secrets;
 
 #[derive(Debug, Snafu)]
 pub enum OidcError {

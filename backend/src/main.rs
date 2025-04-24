@@ -1,8 +1,8 @@
 use crate::config::{Config, OidcConfig};
 use crate::oidc::Oidc;
-use clap::builder::styling::AnsiColor;
-use clap::builder::Styles;
 use clap::Parser;
+use clap::builder::Styles;
+use clap::builder::styling::AnsiColor;
 use snafu::Report;
 use std::path::PathBuf;
 use tracing::error;

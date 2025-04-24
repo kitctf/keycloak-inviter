@@ -1,26 +1,26 @@
 use crate::config::Config;
 use crate::oidc::Oidc;
 use crate::web_handler::{
-    about_me, invite_user, login_oidc_callback, login_redirect, OidcSnafu, WebError,
+    OidcSnafu, WebError, about_me, invite_user, login_oidc_callback, login_redirect, register_user,
 };
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{middleware, Router};
-use axum_extra::headers::Cookie;
+use axum::{Router, middleware};
 use axum_extra::TypedHeader;
+use axum_extra::headers::Cookie;
 use oauth2::TokenIntrospectionResponse;
 use openidconnect::core::CoreTokenIntrospectionResponse;
 use snafu::futures::TryFutureExt;
 use snafu::location;
 use std::net::SocketAddr;
 use tokio::select;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use tracing::{info, warn, Instrument, Span};
+use tracing::{Instrument, Span, info, warn};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -56,6 +56,7 @@ pub async fn start_server(config: Config, oidc: Oidc) {
         .route("/login/callback", get(login_oidc_callback))
         .route("/invite-user", post(invite_user).layer(authed.clone()))
         .route("/about-me", get(about_me).layer(authed.clone()))
+        .route("/register", post(register_user))
         .layer(CorsLayer::very_permissive()) // TODO: Make nicer
         .layer(TraceLayer::new_for_http())
         .with_state(state);

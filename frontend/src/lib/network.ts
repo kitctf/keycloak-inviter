@@ -41,3 +41,23 @@ export async function fetchAddUser(payload: {
   }
   return 'unauthorized'
 }
+
+export async function fetchRegister(payload: {
+  email: string
+  username: string
+}): Promise<'success'> {
+  await fetchWithError(
+    `${BACKEND_URL}/register`,
+    {
+      credentials: 'include',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+    { extraSuccessStatus: [], hideError: true },
+  )
+
+  return 'success'
+}

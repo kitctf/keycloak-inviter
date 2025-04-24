@@ -1,4 +1,5 @@
 use serde::{Deserialize, Deserializer};
+use std::collections::HashMap;
 use tracing::info;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -20,6 +21,17 @@ pub struct KeycloakConfig {
 pub struct ServiceConfig {
     pub frontend_url: String,
     pub listen_address: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegisterConfig {
+    pub tokens: HashMap<String, RegisterToken>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegisterToken {
+    #[serde(flatten)]
+    pub attributes: HashMap<String, Vec<String>>,
 }
 
 #[derive(Clone)]
@@ -64,6 +76,7 @@ pub struct Config {
     pub keycloak: KeycloakConfig,
     pub service: ServiceConfig,
     pub secrets: Secrets,
+    pub register: Option<RegisterConfig>,
 }
 
 fn get_env(key: &str) -> String {
