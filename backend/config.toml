@@ -1,0 +1,14 @@
+[oidc]
+client_id = "UOVRP32rOsLjiPixsXNJMSkzL2l3DQGNkH93Jxfo"
+issuer_url = "http://localhost:9000/application/o/test-inviter/"
+redirect_url = "http://localhost:3000/login/callback"
+introspect_url = "http://localhost:9000/application/o/introspect/"
+scopes = []
+
+[keycloak]
+url = "http://localhost:3000"
+realm = "kitctf"
+
+[service]
+frontend_url = "http://localhost:5173"
+listen_address = "0.0.0.0:3000"

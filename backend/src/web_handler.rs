@@ -1,17 +1,17 @@
-use crate::WebhookConfig;
+use crate::config::Secrets;
 use crate::oidc::{OidcError, OidcFlowId};
 use crate::web::{AppState, AuthedUser};
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::{Extension, Json};
-use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
+use axum_extra::extract::CookieJar;
 use keycloak::types::TypeMap;
 use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use snafu::{Location, Report, ResultExt, Snafu, location};
+use snafu::{location, Location, Report, ResultExt, Snafu};
 use tracing::{info, warn};
 
 #[derive(Debug, Snafu)]
@@ -129,12 +129,12 @@ pub async fn login_oidc_callback(
                 .path("/")
                 .build(),
         ),
-        Redirect::temporary(&state.frontend_url),
+        Redirect::temporary(&state.config.service.frontend_url),
     ))
 }
 
 pub async fn invite_user(
-    State(state): State<AppState>,
+    State(AppState { config, .. }): State<AppState>,
     Extension(authed_user): Extension<AuthedUser>,
     Json(payload): Json<InvitePayload>,
 ) -> Result<(), WebError> {
@@ -147,14 +147,14 @@ pub async fn invite_user(
         "Inviting user"
     );
 
-    hooks_invited_user(authed_user.clone(), payload.clone(), state.webhook_config).await;
+    hooks_invited_user(authed_user.clone(), payload.clone(), &config.secrets).await;
 
     let client = reqwest::Client::new();
     let token = KeycloakAdminToken::acquire_custom_realm(
-        &state.keycloak_config.keycloak_url,
-        &state.keycloak_config.keycloak_user,
-        &state.keycloak_config.keycloak_password,
-        &state.keycloak_config.keycloak_realm,
+        &config.keycloak.url,
+        &config.secrets.keycloak_user,
+        &config.secrets.keycloak_password,
+        &config.keycloak.realm,
         "admin-cli",
         "password",
         &client,
@@ -162,7 +162,7 @@ pub async fn invite_user(
     .await
     .context(KeycloakSnafu)?;
 
-    let admin = KeycloakAdmin::new(&state.keycloak_config.keycloak_url, token, client);
+    let admin = KeycloakAdmin::new(&config.keycloak.url, token, client);
 
     let mut type_map = TypeMap::new();
     type_map.insert("email".to_string(), payload.email.clone());
@@ -175,7 +175,7 @@ pub async fn invite_user(
 
     let result = admin
         .realm_organizations_with_org_id_members_invite_user_post(
-            &state.keycloak_config.keycloak_realm,
+            &config.keycloak.realm,
             "1d6d8ce1-3dac-4642-b8fe-204649ffe82f",
             type_map,
         )
@@ -206,8 +206,8 @@ pub async fn invite_user(
     Ok(())
 }
 
-async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, config: WebhookConfig) {
-    let url = match &config.url {
+async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, secrets: &Secrets) {
+    let url = match &secrets.webhook_url {
         Some(url) => url,
         None => return,
     };

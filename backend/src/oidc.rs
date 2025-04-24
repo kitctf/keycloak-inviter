@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::debug;
+use crate::config::Secrets;
 
 #[derive(Debug, Snafu)]
 pub enum OidcError {
@@ -180,7 +181,7 @@ pub struct Oidc {
 }
 
 impl Oidc {
-    pub async fn build_new(oidc_config: OidcConfig) -> Result<Self, OidcError> {
+    pub async fn build_new(oidc_config: OidcConfig, secrets: &Secrets) -> Result<Self, OidcError> {
         let http_client = reqwest::ClientBuilder::new()
             // Following redirects opens the client up to SSRF vulnerabilities.
             .redirect(reqwest::redirect::Policy::none())
@@ -199,7 +200,7 @@ impl Oidc {
         let oidc_client = CoreClient::from_provider_metadata(
             provider_metadata,
             ClientId::new(oidc_config.client_id.clone()),
-            Some(ClientSecret::new(oidc_config.client_secret.to_string())),
+            Some(ClientSecret::new(secrets.client_secret.to_string())),
         )
         .set_introspection_url(
             IntrospectionUrl::new(oidc_config.introspect_url.to_string()).context(

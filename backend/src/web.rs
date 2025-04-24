@@ -1,34 +1,31 @@
+use crate::config::Config;
 use crate::oidc::Oidc;
 use crate::web_handler::{
-    OidcSnafu, WebError, about_me, invite_user, login_oidc_callback, login_redirect,
+    about_me, invite_user, login_oidc_callback, login_redirect, OidcSnafu, WebError,
 };
-use crate::{KeycloakConfig, OidcConfig, ServiceConfig, WebhookConfig};
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Router, middleware};
-use axum_extra::TypedHeader;
+use axum::{middleware, Router};
 use axum_extra::headers::Cookie;
+use axum_extra::TypedHeader;
 use oauth2::TokenIntrospectionResponse;
 use openidconnect::core::CoreTokenIntrospectionResponse;
 use snafu::futures::TryFutureExt;
 use snafu::location;
 use std::net::SocketAddr;
 use tokio::select;
-use tokio::signal::unix::{SignalKind, signal};
+use tokio::signal::unix::{signal, SignalKind};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use tracing::{Instrument, Span, info, warn};
+use tracing::{info, warn, Instrument, Span};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub oidc_config: OidcConfig,
-    pub keycloak_config: KeycloakConfig,
+    pub config: Config,
     pub oidc: Oidc,
-    pub frontend_url: String,
-    pub webhook_config: WebhookConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -37,19 +34,10 @@ pub struct AuthedUser {
     pub sub: String,
 }
 
-pub async fn start_server(
-    service_config: ServiceConfig,
-    webhook_config: WebhookConfig,
-    oidc_config: OidcConfig,
-    oidc: Oidc,
-    keycloak_config: KeycloakConfig,
-) {
+pub async fn start_server(config: Config, oidc: Oidc) {
     let state = AppState {
-        oidc_config,
+        config: config.clone(),
         oidc,
-        keycloak_config,
-        frontend_url: service_config.frontend_url,
-        webhook_config,
     };
     let authed = middleware::from_fn_with_state(
         state.clone(),
@@ -72,7 +60,7 @@ pub async fn start_server(
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(service_config.listen_address)
+    let listener = tokio::net::TcpListener::bind(config.service.listen_address)
         .await
         .unwrap();
     info!("listening on {}", listener.local_addr().unwrap());
@@ -108,7 +96,7 @@ async fn validate_access(
             location: location!(),
         });
     };
-    if !res.active() || client_id.to_string() != state.oidc_config.client_id {
+    if !res.active() || client_id.to_string() != state.config.oidc.client_id {
         info!(
             active = %res.active(),
             client_id = ?res.client_id(),

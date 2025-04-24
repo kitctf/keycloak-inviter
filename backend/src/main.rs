@@ -1,70 +1,33 @@
+use crate::config::{Config, OidcConfig};
 use crate::oidc::Oidc;
-use tracing::info;
+use clap::builder::styling::AnsiColor;
+use clap::builder::Styles;
+use clap::Parser;
+use snafu::Report;
+use std::path::PathBuf;
+use tracing::error;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+mod config;
 mod oidc;
 mod web;
 mod web_handler;
 
-#[derive(Debug, Clone)]
-pub struct OidcConfig {
-    pub client_id: String,
-    pub client_secret: String,
-    pub issuer_url: String,
-    pub redirect_url: String,
-    pub introspect_url: String,
-    pub scopes: Vec<String>,
-}
+// noinspection DuplicatedCode
+const CLAP_STYLE: Styles = Styles::styled()
+    .header(AnsiColor::Red.on_default().bold())
+    .usage(AnsiColor::Red.on_default().bold())
+    .literal(AnsiColor::Blue.on_default().bold())
+    .placeholder(AnsiColor::Green.on_default());
 
-#[derive(Clone)]
-pub struct KeycloakConfig {
-    pub keycloak_url: String,
-    pub keycloak_user: String,
-    pub keycloak_password: String,
-    pub keycloak_realm: String,
-}
-
-impl KeycloakConfig {
-    pub fn from_env() -> Self {
-        Self {
-            keycloak_url: get_env("KEYCLOAK_URL"),
-            keycloak_user: get_env("KEYCLOAK_USER"),
-            keycloak_password: get_env("KEYCLOAK_PASSWORD"),
-            keycloak_realm: get_env_def("KEYCLOAK_REALM", "kitctf"),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct ServiceConfig {
-    frontend_url: String,
-    listen_address: String,
-}
-
-impl ServiceConfig {
-    pub fn from_env() -> Self {
-        Self {
-            frontend_url: get_env("FRONTEND_URL"),
-            listen_address: get_env_def("LISTEN_ADDRESS", "0.0.0.0:3000"),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct WebhookConfig {
-    pub url: Option<String>,
-}
-
-impl WebhookConfig {
-    pub fn from_env() -> Self {
-        if let Ok(val) = std::env::var("WEBHOOK_URL") {
-            return Self { url: Some(val) };
-        }
-
-        info!("No `WEBHOOK_URL` provided, skipping webhook");
-        Self { url: None }
-    }
+/// Invite users to KITCTF keycloak
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None, styles = CLAP_STYLE)]
+#[command(propagate_version = true)]
+struct CliArgs {
+    /// Path to the config file
+    config_path: PathBuf,
 }
 
 #[tokio::main]
@@ -77,42 +40,41 @@ async fn main() {
         )
         .init();
 
-    let oidc_config = OidcConfig {
-        client_id: get_env("CLIENT_ID"),
-        client_secret: get_env("CLIENT_SECRET"),
-        issuer_url: get_env_def("ISSUER_URL", "https://sso.kitctf.de/realms/kitctf"),
-        redirect_url: get_env("REDIRECT_URL"),
-        introspect_url: get_env_def(
-            "INTROSPECT_URL",
-            "https://sso.kitctf.de/realms/kitctf/protocol/openid-connect/token/introspect",
-        ),
-        scopes: vec!["openid".to_string(), "profile".to_string()],
+    let args = CliArgs::parse();
+
+    let config = match std::fs::read_to_string(&args.config_path) {
+        Ok(content) => content,
+        Err(e) => {
+            error!(
+                path = %args.config_path.display(),
+                error = %Report::from_error(e),
+                "Error reading config file"
+            );
+            std::process::exit(1);
+        }
+    };
+    let config: Config = match toml::from_str(&config) {
+        Ok(config) => config,
+        Err(e) => {
+            error!(
+                path = %args.config_path.display(),
+                error = %Report::from_error(e),
+                "Error parsing config file"
+            );
+            std::process::exit(1);
+        }
     };
 
-    let oidc = Oidc::build_new(oidc_config.clone()).await.unwrap();
-    let service_config = ServiceConfig::from_env();
-    let webhook_config = WebhookConfig::from_env();
-
-    web::start_server(
-        service_config,
-        webhook_config,
-        oidc_config,
-        oidc,
-        KeycloakConfig::from_env(),
-    )
-    .await;
-}
-
-fn get_env(key: &str) -> String {
-    std::env::var(key).unwrap_or_else(|_| panic!("Expected {} env var", key))
-}
-
-fn get_env_def(key: &str, default: &str) -> String {
-    match std::env::var(key) {
-        Ok(val) => val,
-        Err(_) => {
-            info!("Using default value for {}: `{}`", key, default);
-            default.to_string()
+    let oidc = match Oidc::build_new(config.oidc.clone(), &config.secrets).await {
+        Ok(oidc) => oidc,
+        Err(e) => {
+            error!(
+                error = %Report::from_error(e),
+                "Error building OIDC client"
+            );
+            std::process::exit(1);
         }
-    }
+    };
+
+    web::start_server(config, oidc).await;
 }
