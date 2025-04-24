@@ -309,6 +309,7 @@ pub async fn register_user(
                 username: Some(payload.username.clone()),
                 email: Some(payload.email.clone()),
                 attributes: Some(token.attributes.clone()),
+                enabled: Some(true),
                 ..Default::default()
             },
         )
@@ -332,6 +333,36 @@ pub async fn register_user(
         email = payload.email,
         username = payload.username,
         "Registered user"
+    );
+
+    let response = admin
+        .realm_users_with_user_id_send_verify_email_put(
+            &state.config.keycloak.realm,
+            &payload.username,
+            None,
+            None,
+            None,
+        )
+        .await
+        .context(KeycloakSnafu)?;
+    let response = response.into_response();
+
+    if !response.status().is_success() {
+        return Err(WebError::Anything {
+            status: response.status(),
+            message: format!(
+                "Failed to send verify mail: {}",
+                response.text().await.unwrap_or("N/A".to_string())
+            ),
+            location: location!(),
+        });
+    }
+
+    info!(
+        token = %supplied_token,
+        email = payload.email,
+        username = payload.username,
+        "Sent verify mail"
     );
 
     Ok(())
