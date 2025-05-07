@@ -25,7 +25,7 @@
                 Username<span class="text-destructive-foreground -ml-1">*</span>
               </FormLabel>
               <FormControl>
-                <Input type="text" placeholder="rolf" v-bind="componentField" />
+                <Input type="text" placeholder="username" v-bind="componentField" />
               </FormControl>
               <FormDescription>The first name of the person</FormDescription>
               <FormMessage />
