@@ -303,16 +303,13 @@ pub async fn register_user(
 
     let admin = get_keycloak_admin(&state.config, Client::new()).await?;
     let response = admin
-        .realm_users_post(
-            &state.config.keycloak.realm,
-            UserRepresentation {
-                username: Some(payload.username.clone()),
-                email: Some(payload.email.clone()),
-                attributes: Some(token.attributes.clone()),
-                enabled: Some(true),
-                ..Default::default()
-            },
-        )
+        .realm_users_post(&state.config.keycloak.realm, UserRepresentation {
+            username: Some(payload.username.clone()),
+            email: Some(payload.email.clone()),
+            attributes: Some(token.attributes.clone()),
+            enabled: Some(true),
+            ..Default::default()
+        })
         .await
         .context(KeycloakSnafu)?;
     let response = response.into_response();
@@ -328,6 +325,33 @@ pub async fn register_user(
         });
     }
 
+    let created_user = admin
+        .realm_users_get(
+            &state.config.keycloak.realm,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(payload.username.clone()),
+        )
+        .await
+        .context(KeycloakSnafu)?
+        .into_iter()
+        .next()
+        .unwrap()
+        .id
+        .expect("UserId is missing")
+        .to_string();
+
     info!(
         token = %supplied_token,
         email = payload.email,
@@ -338,7 +362,7 @@ pub async fn register_user(
     let response = admin
         .realm_users_with_user_id_send_verify_email_put(
             &state.config.keycloak.realm,
-            &payload.username,
+            &created_user,
             None,
             None,
             None,
