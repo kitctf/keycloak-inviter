@@ -27,7 +27,7 @@
               <FormControl>
                 <Input type="text" placeholder="username" v-bind="componentField" />
               </FormControl>
-              <FormDescription>The first name of the person</FormDescription>
+              <FormDescription>What shall we call you?</FormDescription>
               <FormMessage />
             </FormItem>
           </FormField>
