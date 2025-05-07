@@ -209,11 +209,37 @@ async fn get_keycloak_admin(config: &Config, client: Client) -> Result<KeycloakA
     Ok(KeycloakAdmin::new(&config.keycloak.url, token, client))
 }
 
-async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, secrets: &Secrets) {
+async fn send_user_webhook(webhook_author: String, text: String, secrets: &Secrets) -> bool {
     let url = match &secrets.webhook_url {
         Some(url) => url,
-        None => return,
+        None => return false,
     };
+    let response = Client::new()
+        .post(url)
+        .json(&json!({
+            "text": text,
+            "username": webhook_author,
+            "icon_emoji": "woah"
+        }))
+        .send()
+        .await;
+    let response = match response {
+        Err(e) => {
+            warn!(error = %Report::from_error(&e), "Failed to send webhook");
+            return false;
+        }
+        Ok(e) => e,
+    };
+    let status = response.status();
+    if !status.is_success() {
+        let response = response.text().await.unwrap_or("N/A".to_string());
+        warn!(status = %status, response = %response, "Failed to send webhook");
+        return false;
+    }
+    true
+}
+
+async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, secrets: &Secrets) {
     let mut text = format!("Invited user {}", target.email);
     let names = target
         .first_name
@@ -227,32 +253,24 @@ async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, secre
         text += ")";
     }
 
-    let response = Client::new()
-        .post(url)
-        .json(&json!({
-            "text": text,
-            "username": triggering.user_name,
-            "icon_emoji": "woah"
-        }))
-        .send()
-        .await;
+    let status = send_user_webhook(triggering.user_name, text, secrets).await;
 
-    let response = match response {
-        Err(e) => {
-            warn!(error = %Report::from_error(&e), "Failed to send webhook");
-            return;
-        }
-        Ok(e) => e,
-    };
-
-    let status = response.status();
-    if !status.is_success() {
-        let response = response.text().await.unwrap_or("N/A".to_string());
-        warn!(status = %status, response = %response, "Failed to send webhook");
-        return;
+    if status {
+        info!(status = %status, email = target.email, "Webhook sent successfully");
     }
+}
 
-    info!(status = %status, target_email = %target.email, "Webhook sent successfully");
+async fn hooks_self_registered(target: RegisterPayload, secrets: &Secrets) {
+    let text = format!(
+        "{} ({}) just self-registered",
+        target.username, target.email
+    );
+
+    let status = send_user_webhook(String::from("Keycloak Inviter"), text, secrets).await;
+
+    if status {
+        info!(status = %status, email = target.email, "Webhook sent successfully");
+    }
 }
 
 pub async fn about_me(
@@ -276,8 +294,8 @@ pub async fn register_user(
         });
     };
 
-    let supplied_token = payload.token;
-    let token = match config.tokens.get(&supplied_token) {
+    let supplied_token = &payload.token;
+    let token = match config.tokens.get(supplied_token) {
         Some(token) => token,
         None => {
             info!(
@@ -300,6 +318,8 @@ pub async fn register_user(
         username = payload.username,
         "Received valid token"
     );
+
+    hooks_self_registered(payload.clone(), &state.config.secrets).await;
 
     let admin = get_keycloak_admin(&state.config, Client::new()).await?;
     let response = admin
@@ -413,7 +433,7 @@ pub struct AboutMeResponse {
     user_name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegisterPayload {
     email: String,
