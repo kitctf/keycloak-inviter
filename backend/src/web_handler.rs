@@ -409,6 +409,28 @@ pub async fn register_user(
         "Sent verify mail"
     );
 
+    let response = admin
+        .realm_organizations_with_org_id_members_post(
+            &state.config.keycloak.realm,
+            "1d6d8ce1-3dac-4642-b8fe-204649ffe82f",
+            created_user,
+        )
+        .await
+        .context(KeycloakSnafu)?;
+
+    let response = response.into_response();
+
+    if !response.status().is_success() {
+        return Err(WebError::Anything {
+            status: response.status(),
+            message: format!(
+                "Failed to add user to organization: {}",
+                response.text().await.unwrap_or("N/A".to_string())
+            ),
+            location: location!(),
+        });
+    }
+
     Ok(())
 }
 
