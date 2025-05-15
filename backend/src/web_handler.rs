@@ -319,8 +319,6 @@ pub async fn register_user(
         "Received valid token"
     );
 
-    hooks_self_registered(payload.clone(), &state.config.secrets).await;
-
     let admin = get_keycloak_admin(&state.config, Client::new()).await?;
     let response = admin
         .realm_users_post(&state.config.keycloak.realm, UserRepresentation {
@@ -344,6 +342,9 @@ pub async fn register_user(
             location: location!(),
         });
     }
+
+    hooks_self_registered(payload.clone(), &state.config.secrets).await;
+
 
     let created_user = admin
         .realm_users_get(
