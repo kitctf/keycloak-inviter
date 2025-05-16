@@ -5,7 +5,12 @@ use clap::builder::Styles;
 use clap::builder::styling::AnsiColor;
 use snafu::Report;
 use std::path::PathBuf;
-use tracing::error;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::time::Duration;
+use tokio::time::Instant;
+use tracing::{error, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -65,16 +70,53 @@ async fn main() {
         }
     };
 
-    let oidc = match Oidc::build_new(config.oidc.clone(), &config.secrets).await {
-        Ok(oidc) => oidc,
-        Err(e) => {
-            error!(
-                error = %Report::from_error(e),
-                "Error building OIDC client"
-            );
-            std::process::exit(1);
+    let mut current_backoff = Duration::from_secs(1);
+    let shutdown_requested = Arc::new(AtomicBool::new(false));
+    register_termination_handler(&shutdown_requested);
+
+    let oidc = loop {
+        if shutdown_requested.load(Ordering::Acquire) {
+            error!("Shutdown requested, exiting");
+            return;
         }
+        match Oidc::build_new(config.oidc.clone(), &config.secrets).await {
+            Ok(oidc) => break oidc,
+            Err(e) => {
+                error!(
+                    error = %Report::from_error(e),
+                    "Error building OIDC client"
+                );
+                backoff(&mut current_backoff, &shutdown_requested);
+                continue;
+            }
+        };
     };
 
     web::start_server(config, oidc).await;
+}
+
+pub fn backoff(current_backoff: &mut Duration, shutdown_requested: &Arc<AtomicBool>) {
+    warn!(backoff = ?current_backoff, "Backing off");
+    // We need to be responsive to stop requests (CTRL+C), so we can't just sleep for
+    // the full duration
+    let target = Instant::now() + *current_backoff;
+    while Instant::now() < target && !shutdown_requested.load(Ordering::Acquire) {
+        thread::sleep(Duration::from_millis(100));
+    }
+    *current_backoff *= 2;
+    *current_backoff = (*current_backoff).min(Duration::from_secs(60));
+}
+
+fn register_termination_handler(stop_requested: &Arc<AtomicBool>) {
+    let stop_requested_clone = stop_requested.clone();
+    let ctrlc_result = ctrlc::set_handler(move || {
+        stop_requested_clone.store(true, Ordering::Release);
+    });
+
+    if let Err(e) = ctrlc_result {
+        warn!(
+            error = ?e,
+            "Could not register termination handler, program behaviour on SIGINT/SIGTERM is undefined"
+        );
+    }
 }

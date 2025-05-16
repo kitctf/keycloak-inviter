@@ -323,13 +323,16 @@ pub async fn register_user(
 
     let admin = get_keycloak_admin(&state.config, Client::new()).await?;
     let response = admin
-        .realm_users_post(&state.config.keycloak.realm, UserRepresentation {
-            username: Some(payload.username.clone()),
-            email: Some(payload.email.clone()),
-            attributes: Some(token.attributes.clone()),
-            enabled: Some(true),
-            ..Default::default()
-        })
+        .realm_users_post(
+            &state.config.keycloak.realm,
+            UserRepresentation {
+                username: Some(payload.username.clone()),
+                email: Some(payload.email.clone()),
+                attributes: Some(token.attributes.clone()),
+                enabled: Some(true),
+                ..Default::default()
+            },
+        )
         .await
         .context(KeycloakSnafu)?;
     let response = response.into_response();
