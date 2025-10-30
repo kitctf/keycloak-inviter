@@ -58,7 +58,7 @@
             pnpmDeps = pkgs.pnpm_9.fetchDeps {
               inherit (finalAttrs) pname version src;
               fetcherVersion = 1;
-              hash = "sha256-aJXB0UOcZrnE4wWCRZEED31GJFW/5BwRtl/cBV7k2Ak=";
+              hash = "sha256-RUDq4Tx/VdHzynkZ0BjLxD43bfs2xxWUp0QzoHgm9vs=";
             };
           });
           frontend-docker =
