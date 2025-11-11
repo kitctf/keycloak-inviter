@@ -43,7 +43,11 @@
               <FormMessage />
             </FormItem>
           </FormField>
-          <Button class="col-span-2 w-fit cursor-pointer" type="submit" :disabled="sendingRequest">
+          <Button
+            class="lg:col-span-2 w-fit cursor-pointer"
+            type="submit"
+            :disabled="sendingRequest"
+          >
             <LucideLoaderCircle class="animate-spin" v-show="false" />
             Invite user
           </Button>

@@ -11,7 +11,7 @@
       <CardContent>
         <form @submit="onSubmit" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-1">
           <FormField v-slot="{ componentField }" name="email">
-            <FormItem class="col-span-2">
+            <FormItem class="lg:col-span-2">
               <FormLabel>E-mail<span class="text-destructive-foreground -ml-1">*</span></FormLabel>
               <FormControl>
                 <Input type="text" placeholder="foo@kitctf.de" v-bind="componentField" />
