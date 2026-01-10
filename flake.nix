@@ -39,7 +39,7 @@
 
             nativeBuildInputs = [
               pkgs.nodejs
-              pkgs.pnpm_9.configHook
+              pkgs.pnpm.configHook
             ];
 
             buildPhase = ''
@@ -55,10 +55,10 @@
               runHook postInstall
             '';
 
-            pnpmDeps = pkgs.pnpm_9.fetchDeps {
+            pnpmDeps = pkgs.pnpm.fetchDeps {
               inherit (finalAttrs) pname version src;
-              fetcherVersion = 1;
-              hash = "sha256-Sz1Q+HMBdnmQw+SRCvqe25V7AhqKOzqUTihjwLzkLXw=";
+              fetcherVersion = 2;
+              hash = "sha256-eP8tGxouCGfEHU5zVv00z1v41JgoCMH+6B8+NnNbBQw=";
             };
           });
           frontend-docker =
