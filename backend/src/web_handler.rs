@@ -352,21 +352,23 @@ pub async fn register_user(
 
     let created_user = admin
         .realm_users_get(
-            &state.config.keycloak.realm,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(payload.username.clone()),
+            &state.config.keycloak.realm,   // realm
+            None,                           // brief_representation
+            None,                           // created_after
+            None,                           // created_before
+            None,                           // email
+            None,                           // email_verified
+            None,                           // enabled
+            None,                           // exact
+            None,                           // first
+            None,                           // first_name
+            None,                           // idp_alias
+            None,                           // idp_user_id
+            None,                           // last_name
+            None,                           // max
+            None,                           // q
+            None,                           // search
+            Some(payload.username.clone()), // username
         )
         .await
         .context(KeycloakSnafu)?
