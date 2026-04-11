@@ -7,4 +7,5 @@
 <script setup lang="ts">
 import NavBar from '@/components/NavBar.vue'
 import { Toaster } from '@/components/ui/sonner'
+import 'vue-sonner/style.css'
 </script>
