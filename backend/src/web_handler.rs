@@ -198,13 +198,17 @@ async fn get_keycloak_admin(
     client: Client,
 ) -> Result<KeycloakAdmin<KeycloakServiceAccountAdminTokenRetriever>, WebError> {
     let token_retriever = KeycloakServiceAccountAdminTokenRetriever::create_with_custom_realm(
-        &config.secrets.client_id,
+        &config.oidc.client_id,
         &config.secrets.client_secret,
         &config.keycloak.realm,
         client.clone(),
     );
 
-    Ok(KeycloakAdmin::new(&config.keycloak.url, token_retriever, client))
+    Ok(KeycloakAdmin::new(
+        &config.keycloak.url,
+        token_retriever,
+        client,
+    ))
 }
 
 async fn send_user_webhook(webhook_author: String, text: String, secrets: &Secrets) -> bool {
@@ -345,7 +349,6 @@ pub async fn register_user(
     }
 
     hooks_self_registered(payload.clone(), &state.config.secrets).await;
-
 
     let created_user = admin
         .realm_users_get(

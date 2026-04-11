@@ -36,7 +36,6 @@ pub struct RegisterToken {
 
 #[derive(Clone)]
 pub struct Secrets {
-    pub client_id: String,
     pub client_secret: String,
     pub webhook_url: Option<String>,
 }
@@ -52,7 +51,6 @@ impl Secrets {
         };
 
         Self {
-            client_id: get_env("CLIENT_ID"),
             client_secret: get_env("CLIENT_SECRET"),
             webhook_url,
         }
