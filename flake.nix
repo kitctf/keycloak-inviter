@@ -2,9 +2,8 @@
   description = "A suite for testing compiler submissions";
 
   inputs = {
-    naersk.url = "github:nix-community/naersk";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    naersk.inputs.nixpkgs.follows = "nixpkgs";
+    crane.url = "github:ipetkov/crane";
     gitignore.url = "github:hercules-ci/gitignore.nix";
     gitignore.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -14,7 +13,7 @@
       self,
       gitignore,
       nixpkgs,
-      naersk,
+      crane,
     }:
     let
       forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
@@ -24,11 +23,12 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          naersk' = pkgs.callPackage naersk { };
+          craneLib = crane.mkLib pkgs;
           inherit (gitignore.lib) gitignoreSource;
         in
         rec {
-          backend = naersk'.buildPackage {
+          backend = craneLib.buildPackage {
+            pname = "backend";
             src = gitignoreSource ./backend;
           };
           frontend = pkgs.stdenv.mkDerivation (finalAttrs: {
@@ -39,7 +39,8 @@
 
             nativeBuildInputs = [
               pkgs.nodejs
-              pkgs.pnpm.configHook
+              pkgs.pnpmConfigHook
+              pkgs.pnpm
             ];
 
             buildPhase = ''
@@ -55,10 +56,10 @@
               runHook postInstall
             '';
 
-            pnpmDeps = pkgs.pnpm.fetchDeps {
+            pnpmDeps = pkgs.fetchPnpmDeps {
               inherit (finalAttrs) pname version src;
               fetcherVersion = 2;
-              hash = "sha256-eP8tGxouCGfEHU5zVv00z1v41JgoCMH+6B8+NnNbBQw=";
+              hash = "sha256-TmWaFL3LTSaTSHEOg4ZCx3kwPV9dm97xZ0yX/yw7Njc=";
             };
           });
           frontend-docker =
