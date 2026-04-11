@@ -7,7 +7,7 @@ use axum::{Extension, Json};
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
 use keycloak::types::{TypeMap, UserRepresentation};
-use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError};
+use keycloak::{KeycloakAdmin, KeycloakError, KeycloakServiceAccountAdminTokenRetriever};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -193,20 +193,18 @@ pub async fn invite_user(
     Ok(())
 }
 
-async fn get_keycloak_admin(config: &Config, client: Client) -> Result<KeycloakAdmin, WebError> {
-    let token = KeycloakAdminToken::acquire_custom_realm(
-        &config.keycloak.url,
-        &config.secrets.keycloak_user,
-        &config.secrets.keycloak_password,
+async fn get_keycloak_admin(
+    config: &Config,
+    client: Client,
+) -> Result<KeycloakAdmin<KeycloakServiceAccountAdminTokenRetriever>, WebError> {
+    let token_retriever = KeycloakServiceAccountAdminTokenRetriever::create_with_custom_realm(
+        &config.secrets.client_id,
+        &config.secrets.client_secret,
         &config.keycloak.realm,
-        "admin-cli",
-        "password",
-        &client,
-    )
-    .await
-    .context(KeycloakSnafu)?;
+        client.clone(),
+    );
 
-    Ok(KeycloakAdmin::new(&config.keycloak.url, token, client))
+    Ok(KeycloakAdmin::new(&config.keycloak.url, token_retriever, client))
 }
 
 async fn send_user_webhook(webhook_author: String, text: String, secrets: &Secrets) -> bool {

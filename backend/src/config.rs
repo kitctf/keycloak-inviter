@@ -36,9 +36,8 @@ pub struct RegisterToken {
 
 #[derive(Clone)]
 pub struct Secrets {
+    pub client_id: String,
     pub client_secret: String,
-    pub keycloak_password: String,
-    pub keycloak_user: String,
     pub webhook_url: Option<String>,
 }
 
@@ -53,9 +52,8 @@ impl Secrets {
         };
 
         Self {
+            client_id: get_env("CLIENT_ID"),
             client_secret: get_env("CLIENT_SECRET"),
-            keycloak_password: get_env("KEYCLOAK_PASSWORD"),
-            keycloak_user: get_env("KEYCLOAK_USER"),
             webhook_url,
         }
     }
