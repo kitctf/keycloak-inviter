@@ -6,7 +6,7 @@ export class FetchError extends Error {
   readonly status: number
 
   constructor(message: string, status: number) {
-    super(`(HTTP ${status}) ${message}`)
+    super(message)
     this.status = status
   }
 }

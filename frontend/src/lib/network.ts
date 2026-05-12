@@ -1,4 +1,9 @@
-import { type AboutMe, AboutMeSchema } from '@/lib/types.ts'
+import {
+  type AboutMe,
+  AboutMeSchema,
+  type AllowedApplication,
+  AllowedApplicationSchema,
+} from '@/lib/types.ts'
 import { BACKEND_URL, fetchWithError } from '@/lib/fetching.ts'
 
 export async function fetchAboutMe(): Promise<AboutMe | 'unauthorized'> {
@@ -16,6 +21,23 @@ export async function fetchAboutMe(): Promise<AboutMe | 'unauthorized'> {
   }
   const data = await response.json()
   return AboutMeSchema.parse(data)
+}
+
+export async function fetchApplications(): Promise<AllowedApplication[] | 'unauthorized'> {
+  const response = await fetchWithError(
+    `${BACKEND_URL}/applications`,
+    {
+      credentials: 'include',
+    },
+    {
+      extraSuccessStatus: [401],
+    },
+  )
+  if (response.status === 401) {
+    return 'unauthorized'
+  }
+  const data = await response.json()
+  return AllowedApplicationSchema.array().parse(data)
 }
 
 export async function fetchAddUser(payload: {

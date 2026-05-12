@@ -1,59 +1,57 @@
 <template>
-  <PageContainer>
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          Hey <span class="gradient-primary">{{ userInfo.userName }}</span
-          >, invite a user
-        </CardTitle>
-        <CardDescription>You apparently have the power</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form @submit="onSubmit" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-1">
-          <FormField v-slot="{ componentField }" name="email">
-            <FormItem class="lg:col-span-2">
-              <FormLabel>E-mail<span class="text-destructive-foreground -ml-1">*</span></FormLabel>
-              <FormControl>
-                <Input type="text" placeholder="foo@kitctf.de" v-bind="componentField" />
-              </FormControl>
-              <FormDescription>The email address</FormDescription>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-          <FormField v-slot="{ componentField }" name="firstName">
-            <FormItem>
-              <FormLabel>First name</FormLabel>
-              <FormControl>
-                <Input type="text" placeholder="Max" v-bind="componentField" />
-              </FormControl>
-              <FormDescription>The first name of the person</FormDescription>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-          <FormField v-slot="{ componentField }" name="lastName">
-            <FormItem>
-              <FormLabel>Last name</FormLabel>
-              <FormControl>
-                <Input type="text" placeholder="Musterfrau" v-bind="componentField" />
-              </FormControl>
-              <FormDescription>The last name of the person</FormDescription>
-              <FormMessage />
-            </FormItem>
-          </FormField>
-          <Button class="w-fit cursor-pointer" type="submit" :disabled="sendingInvite">
-            <LucideLoaderCircle class="animate-spin" v-show="false" />
-            Invite user
-          </Button>
-        </form>
-        <div
-          v-if="error"
-          class="bg-accent rounded-lg my-2 p-2 text-destructive-foreground whitespace-pre break-all"
-        >
-          {{ error }}
-        </div>
-      </CardContent>
-    </Card>
-  </PageContainer>
+  <Card>
+    <CardHeader>
+      <CardTitle>
+        Hey <span class="gradient-primary">{{ userInfo.userName }}</span
+        >, invite a user
+      </CardTitle>
+      <CardDescription>You apparently have the power</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <form @submit="onSubmit" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-1">
+        <FormField v-slot="{ componentField }" name="email">
+          <FormItem class="lg:col-span-2">
+            <FormLabel>E-mail<span class="text-destructive-foreground -ml-1">*</span></FormLabel>
+            <FormControl>
+              <Input type="text" placeholder="foo@kitctf.de" v-bind="componentField" />
+            </FormControl>
+            <FormDescription>The email address</FormDescription>
+            <FormMessage />
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" name="firstName">
+          <FormItem>
+            <FormLabel>First name</FormLabel>
+            <FormControl>
+              <Input type="text" placeholder="Max" v-bind="componentField" />
+            </FormControl>
+            <FormDescription>The first name of the person</FormDescription>
+            <FormMessage />
+          </FormItem>
+        </FormField>
+        <FormField v-slot="{ componentField }" name="lastName">
+          <FormItem>
+            <FormLabel>Last name</FormLabel>
+            <FormControl>
+              <Input type="text" placeholder="Musterfrau" v-bind="componentField" />
+            </FormControl>
+            <FormDescription>The last name of the person</FormDescription>
+            <FormMessage />
+          </FormItem>
+        </FormField>
+        <Button class="w-fit cursor-pointer" type="submit" :disabled="sendingInvite">
+          <LucideLoaderCircle class="animate-spin" v-show="false" />
+          Invite user
+        </Button>
+      </form>
+      <div
+        v-if="error"
+        class="bg-accent rounded-lg my-2 p-2 text-destructive-foreground whitespace-pre break-all"
+      >
+        {{ error }}
+      </div>
+    </CardContent>
+  </Card>
 </template>
 
 <script setup lang="ts">
@@ -72,7 +70,6 @@ import { BACKEND_URL } from '@/lib/fetching.ts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { LucideLoaderCircle } from 'lucide-vue-next'
-import PageContainer from '@/components/PageContainer.vue'
 import { fetchAddUser } from '@/lib/network.ts'
 import { toTypedSchema } from '@vee-validate/zod'
 import { toast } from 'vue-sonner'

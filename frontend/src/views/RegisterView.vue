@@ -52,12 +52,28 @@
             Invite user
           </Button>
         </form>
-        <div
-          v-if="error"
-          class="bg-accent rounded-lg my-2 p-2 text-destructive-foreground whitespace-pre break-all"
-        >
-          {{ error }}
-        </div>
+        <Alert variant="destructive" v-if="error">
+          <LucideAlertCircle />
+          <AlertTitle>An error occurred</AlertTitle>
+          <AlertDescription class="break-all whitespace-pre leading-4 font-mono">
+            {{ error }}
+          </AlertDescription>
+        </Alert>
+        <Alert class="mt-2" v-if="!error && justRegistered">
+          <LucideCheckCircle2 />
+          <AlertTitle>Success! An invitation has been sent.</AlertTitle>
+          <AlertDescription>
+            <ol>
+              <li>Follow the steps in the E-Mail to create your account.</li>
+              <li>
+                Afterwards, check out the
+                <RouterLink :to="{ path: '/' }" class="underline text-blue-400"
+                  >dashboard</RouterLink
+                >.
+              </li>
+            </ol>
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   </PageContainer>
@@ -73,10 +89,13 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { LucideAlertCircle, LucideCheckCircle2, LucideLoaderCircle } from 'lucide-vue-next'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import Alert from '@/components/ui/alert/Alert.vue'
+import AlertDescription from '@/components/ui/alert/AlertDescription.vue'
+import AlertTitle from '@/components/ui/alert/AlertTitle.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { LucideLoaderCircle } from 'lucide-vue-next'
 import PageContainer from '@/components/PageContainer.vue'
 import { fetchRegister } from '@/lib/network.ts'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -87,6 +106,7 @@ import { z } from 'zod'
 
 const sendingRequest = ref(false)
 const error = ref<string | null>(null)
+const justRegistered = ref<boolean>(false)
 
 const formSchema = toTypedSchema(
   z.object({
@@ -128,6 +148,7 @@ onMounted(() => {
 const onSubmit = form.handleSubmit(async (values) => {
   sendingRequest.value = true
   error.value = null
+  justRegistered.value = false
 
   try {
     const response = await toast
@@ -145,6 +166,7 @@ const onSubmit = form.handleSubmit(async (values) => {
     if (response === 'success') {
       form.resetForm()
       error.value = null
+      justRegistered.value = true
     }
   } finally {
     sendingRequest.value = false
