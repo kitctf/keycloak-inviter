@@ -1,8 +1,8 @@
 [oidc]
-client_id = "UOVRP32rOsLjiPixsXNJMSkzL2l3DQGNkH93Jxfo"
-issuer_url = "http://localhost:9000/application/o/test-inviter/"
+client_id = "user-invitation"
+issuer_url = "https://sso.kitctf.de/realms/kitctf"
 redirect_url = "http://localhost:3000/login/callback"
-introspect_url = "http://localhost:9000/application/o/introspect/"
+introspect_url = "https://sso.kitctf.de/realms/kitctf/protocol/openid-connect/token/introspect"
 scopes = []
 
 [keycloak]

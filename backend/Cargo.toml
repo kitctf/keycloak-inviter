@@ -22,4 +22,24 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 keycloak = { version = "26.6.1", features = ["reqwest12", "tags-all"], default-features = false }
 toml = "1.1.2"
 clap = { version = "4.6.0", features = ["derive"] }
-ctrlc = "3.5.2"
+tokio-util = "0.7.18"
+
+[lints.rust]
+unsafe_code = { level = "deny", priority = 1 }
+deprecated_safe = "warn"
+future_incompatible = "warn"
+keyword_idents = "warn"
+rust_2018_idioms = "warn"
+unused = "warn"
+non_local_definitions = "warn"
+redundant_imports = "warn"
+redundant_lifetimes = "warn"
+single_use_lifetimes = "warn"
+unit_bindings = "warn"
+unused_crate_dependencies = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[lints.clippy]
+use_self = "warn"

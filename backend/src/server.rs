@@ -1,8 +1,9 @@
 use crate::config::Config;
+use crate::endpoints::auth::{about_me, login_oidc_callback, login_redirect};
+use crate::endpoints::invite::invite_user;
+use crate::endpoints::self_register::register_user;
+use crate::error::{OidcSnafu, WebError};
 use crate::oidc::Oidc;
-use crate::web_handler::{
-    OidcSnafu, WebError, about_me, invite_user, login_oidc_callback, login_redirect, register_user,
-};
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
@@ -14,7 +15,7 @@ use axum_extra::headers::Cookie;
 use oauth2::TokenIntrospectionResponse;
 use openidconnect::core::CoreTokenIntrospectionResponse;
 use snafu::futures::TryFutureExt;
-use snafu::location;
+use snafu::{ResultExt, Whatever, location};
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::unix::{SignalKind, signal};
@@ -34,7 +35,7 @@ pub struct AuthedUser {
     pub sub: String,
 }
 
-pub async fn start_server(config: Config, oidc: Oidc) {
+pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Whatever> {
     let state = AppState {
         config: config.clone(),
         oidc,
@@ -72,7 +73,7 @@ pub async fn start_server(config: Config, oidc: Oidc) {
     )
     .with_graceful_shutdown(async { graceful_shutdown().await }.instrument(Span::current()))
     .await
-    .unwrap()
+    .whatever_context("server died")
 }
 
 async fn validate_access(

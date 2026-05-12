@@ -62,7 +62,7 @@ impl<'de> Deserialize<'de> for Secrets {
     where
         D: Deserializer<'de>,
     {
-        Ok(Secrets::from_env())
+        Ok(Self::from_env())
     }
 }
 

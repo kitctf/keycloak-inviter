@@ -5,19 +5,19 @@ use clap::builder::Styles;
 use clap::builder::styling::AnsiColor;
 use snafu::Report;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
 use std::time::Duration;
-use tokio::time::Instant;
+use tokio::signal::unix::{SignalKind, signal};
+use tokio::{join, select, signal};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 mod config;
+mod endpoints;
+mod error;
 mod oidc;
-mod web;
-mod web_handler;
+mod server;
 
 // noinspection DuplicatedCode
 const CLAP_STYLE: Styles = Styles::styled()
@@ -71,11 +71,10 @@ async fn main() {
     };
 
     let mut current_backoff = Duration::from_secs(1);
-    let shutdown_requested = Arc::new(AtomicBool::new(false));
-    register_termination_handler(&shutdown_requested);
+    let shutdown_requested = CancellationToken::new();
 
     let oidc = loop {
-        if shutdown_requested.load(Ordering::Acquire) {
+        if shutdown_requested.is_cancelled() {
             error!("Shutdown requested, exiting");
             return;
         }
@@ -86,37 +85,38 @@ async fn main() {
                     error = %Report::from_error(e),
                     "Error building OIDC client"
                 );
-                backoff(&mut current_backoff, &shutdown_requested);
+                backoff(&mut current_backoff, shutdown_requested.clone()).await;
                 continue;
             }
         };
     };
 
-    web::start_server(config, oidc).await;
+    let (res, _) = join!(
+        server::start_server(config, oidc),
+        shutdown_signal(shutdown_requested.clone())
+    );
+    res.unwrap();
 }
 
-pub fn backoff(current_backoff: &mut Duration, shutdown_requested: &Arc<AtomicBool>) {
+pub async fn backoff(current_backoff: &mut Duration, shutdown_requested: CancellationToken) {
     warn!(backoff = ?current_backoff, "Backing off");
-    // We need to be responsive to stop requests (CTRL+C), so we can't just sleep for
-    // the full duration
-    let target = Instant::now() + *current_backoff;
-    while Instant::now() < target && !shutdown_requested.load(Ordering::Acquire) {
-        thread::sleep(Duration::from_millis(100));
+    let waiting = tokio::time::sleep(*current_backoff);
+    let cancelling = shutdown_requested.cancelled();
+
+    select! {
+        _ = waiting => {},
+        _ = cancelling => {},
     }
     *current_backoff *= 2;
     *current_backoff = (*current_backoff).min(Duration::from_secs(60));
 }
 
-fn register_termination_handler(stop_requested: &Arc<AtomicBool>) {
-    let stop_requested_clone = stop_requested.clone();
-    let ctrlc_result = ctrlc::set_handler(move || {
-        stop_requested_clone.store(true, Ordering::Release);
-    });
-
-    if let Err(e) = ctrlc_result {
-        warn!(
-            error = ?e,
-            "Could not register termination handler, program behaviour on SIGINT/SIGTERM is undefined"
-        );
+async fn shutdown_signal(token: CancellationToken) {
+    let mut sigterm = signal(SignalKind::terminate()).unwrap();
+    let interrupt = signal::ctrl_c();
+    select! {
+        _ = sigterm.recv() => warn!("Received SIGTERM"),
+        _ = interrupt => warn!("Received SIGINT")
     }
+    token.cancel();
 }
