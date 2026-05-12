@@ -8,6 +8,8 @@ export const AboutMeSchema = z.object({
 export const AllowedApplicationSchema = z.object({
   url: z.string(),
   name: z.string(),
+  group: z.string(),
+  description: z.string(),
   icon: z
     .enum([
       'chat',
