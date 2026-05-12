@@ -1,49 +1,74 @@
-use crate::oidc::OidcError;
-use axum::Json;
 use axum::response::{IntoResponse, Response};
-use keycloak::KeycloakError;
+use derive_more::Display;
 use reqwest::StatusCode;
-use serde_json::json;
-use snafu::{Location, Report, Snafu};
-use tracing::info;
+use rootcause::Report;
+use tracing::Level;
+use tracing::warn;
 
-#[derive(Debug, Snafu)]
-#[snafu(visibility(pub(crate)))]
-pub enum WebError {
-    #[snafu(display("Error {message} at {location}"))]
-    Anything {
-        status: StatusCode,
-        message: String,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Oidc error at {location}"))]
-    Oidc {
-        source: OidcError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Keycloak error at {location}"))]
-    Keycloak {
-        source: KeycloakError,
-        #[snafu(implicit)]
-        location: Location,
-    },
+/// A marker to print the whole error chain in the system log
+#[derive(Debug, Display, Clone)]
+pub struct PrintRootcauseChain(pub Level);
+
+impl PrintRootcauseChain {
+    pub fn warn() -> Self {
+        Self(Level::WARN)
+    }
+
+    pub fn info() -> Self {
+        Self(Level::INFO)
+    }
+}
+
+macro_rules! dyn_event {
+    ($lvl:expr, $($arg:tt)+) => {
+        match $lvl {
+            tracing::Level::ERROR => tracing::error!($($arg)+),
+            tracing::Level::WARN  => tracing::warn!($($arg)+),
+            tracing::Level::INFO  => tracing::info!($($arg)+),
+            tracing::Level::DEBUG => tracing::debug!($($arg)+),
+            tracing::Level::TRACE => tracing::trace!($($arg)+),
+        }
+    };
+}
+
+pub struct WebError {
+    report: Report,
+}
+
+impl<T: ?Sized> From<Report<T>> for WebError {
+    fn from(report: Report<T>) -> Self {
+        Self {
+            report: report.into_dynamic(),
+        }
+    }
 }
 
 impl IntoResponse for WebError {
     fn into_response(self) -> Response {
-        let status = match &self {
-            Self::Anything { status, .. } => *status,
-            Self::Oidc { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Keycloak { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-        };
+        let status_code = self
+            .report
+            .iter_reports()
+            .flat_map(|node| node.attachments().iter())
+            .filter_map(|attachment| attachment.downcast_inner::<StatusCode>())
+            .next();
+        let error_message = format!("error: {}", self.report);
 
-        let msg = Report::from_error(&self).to_string();
-        if status == StatusCode::INTERNAL_SERVER_ERROR {
-            info!(status = %status, error = %msg, "Internal server error");
+        let print_chain = self
+            .report
+            .iter_reports()
+            .flat_map(|node| node.attachments().iter())
+            .filter_map(|attachment| attachment.downcast_inner::<PrintRootcauseChain>())
+            .next();
+
+        if let Some(print_chain) = print_chain {
+            dyn_event!(print_chain.0, error = %self.report, "Error bubbled up to user");
         }
 
-        (status, Json(json!({"message": msg}))).into_response()
+        if let Some(status_code) = status_code {
+            (*status_code, error_message).into_response()
+        } else {
+            warn!(%self.report, "error without status code during handling");
+            (StatusCode::INTERNAL_SERVER_ERROR, error_message).into_response()
+        }
     }
 }

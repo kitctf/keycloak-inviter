@@ -2,9 +2,10 @@ use crate::config::{Config, Secrets};
 use crate::error::WebError;
 use keycloak::{KeycloakAdmin, KeycloakServiceAccountAdminTokenRetriever};
 use reqwest::Client;
+use rootcause::option_ext::OptionExt;
+use rootcause::prelude::ResultExt;
+use rootcause::{Report, report};
 use serde_json::json;
-use snafu::Report;
-use tracing::warn;
 
 pub mod auth;
 pub mod invite;
@@ -28,11 +29,15 @@ async fn get_keycloak_admin(
     ))
 }
 
-async fn send_user_added_to_mattermost(author: String, text: String, secrets: &Secrets) -> bool {
-    let url = match &secrets.webhook_url {
-        Some(url) => url,
-        None => return false,
-    };
+async fn send_user_added_to_mattermost(
+    author: &str,
+    text: String,
+    secrets: &Secrets,
+) -> Result<(), Report> {
+    let url = secrets
+        .webhook_url
+        .as_ref()
+        .context("No webhook URL given in config")?;
     let response = Client::new()
         .post(url)
         .json(&json!({
@@ -41,19 +46,15 @@ async fn send_user_added_to_mattermost(author: String, text: String, secrets: &S
             "icon_emoji": "woah"
         }))
         .send()
-        .await;
-    let response = match response {
-        Err(e) => {
-            warn!(error = %Report::from_error(&e), "Failed to send webhook");
-            return false;
-        }
-        Ok(e) => e,
-    };
+        .await
+        .context("Failed to send webhook")?;
+
     let status = response.status();
     if !status.is_success() {
         let response = response.text().await.unwrap_or("N/A".to_string());
-        warn!(status = %status, response = %response, "Failed to send webhook");
-        return false;
+        return Err(report!("Failed to send webhook")
+            .attach(status)
+            .attach(format!("Message: {response}")));
     }
-    true
+    Ok(())
 }

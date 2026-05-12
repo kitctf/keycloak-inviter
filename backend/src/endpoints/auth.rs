@@ -1,4 +1,4 @@
-use crate::error::WebError;
+use crate::error::{PrintRootcauseChain, WebError};
 use crate::oidc::OidcFlowId;
 use crate::server::{AppState, AuthedUser};
 use axum::extract::{Query, State};
@@ -7,9 +7,10 @@ use axum::response::Redirect;
 use axum::{Extension, Json};
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, Expiration, SameSite};
+use rootcause::prelude::ResultExt;
+use rootcause::report;
 use serde::{Deserialize, Serialize};
-use snafu::{Report, location};
-use tracing::{info, warn};
+use tracing::info;
 
 pub async fn login_redirect(
     State(state): State<AppState>,
@@ -36,37 +37,28 @@ pub async fn login_oidc_callback(
     let flow_id = match cookies.get("oidc_flow_id") {
         Some(flow_id) => flow_id,
         None => {
-            warn!("Received oidc login callback without oidc flow id cookie");
-            return Err(WebError::Anything {
-                status: StatusCode::UNAUTHORIZED,
-                message: "Missing oidc flow id cookie".to_string(),
-                location: location!(),
-            });
+            return Err(report!("Missing oidc flow cookie")
+                .attach(StatusCode::UNAUTHORIZED)
+                .attach(format!("code: {}", oidc_callback_payload.code))
+                .attach(format!("state: {}", oidc_callback_payload.state))
+                .attach(PrintRootcauseChain::warn())
+                .into());
         }
     };
     let flow_id = OidcFlowId::from_string(flow_id.value().to_string());
 
     info!(flow_id = %flow_id, "Handling OIDC callback");
 
-    let res = state
+    let user = state
         .oidc
         .handle_oidc_callback(
             flow_id.clone(),
             &oidc_callback_payload.code,
             &oidc_callback_payload.state,
         )
-        .await;
-
-    let user = match res {
-        Ok(user) => user,
-        Err(e) => {
-            info!(flow_id = %flow_id, error = %Report::from_error(&e), "OIDC login failed");
-            return Err(WebError::Oidc {
-                location: location!(),
-                source: e,
-            });
-        }
-    };
+        .await
+        .context("OIDC login failed")
+        .attach(PrintRootcauseChain::info())?;
 
     info!(
         flow_id = flow_id.to_string(),

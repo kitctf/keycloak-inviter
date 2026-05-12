@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::endpoints::auth::{about_me, login_oidc_callback, login_redirect};
 use crate::endpoints::invite::invite_user;
 use crate::endpoints::self_register::register_user;
-use crate::error::{OidcSnafu, WebError};
+use crate::error::{PrintRootcauseChain, WebError};
 use crate::oidc::Oidc;
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
@@ -14,8 +14,9 @@ use axum_extra::TypedHeader;
 use axum_extra::headers::Cookie;
 use oauth2::TokenIntrospectionResponse;
 use openidconnect::core::CoreTokenIntrospectionResponse;
-use snafu::futures::TryFutureExt;
-use snafu::{ResultExt, Whatever, location};
+use rootcause::option_ext::OptionExt;
+use rootcause::prelude::ResultExt;
+use rootcause::{Report, report};
 use std::net::SocketAddr;
 use tokio::select;
 use tokio::signal::unix::{SignalKind, signal};
@@ -35,7 +36,7 @@ pub struct AuthedUser {
     pub sub: String,
 }
 
-pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Whatever> {
+pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Report> {
     let state = AppState {
         config: config.clone(),
         oidc,
@@ -64,8 +65,11 @@ pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Whatever> {
 
     let listener = tokio::net::TcpListener::bind(config.service.listen_address)
         .await
-        .unwrap();
-    info!("listening on {}", listener.local_addr().unwrap());
+        .context("failed to listen")?;
+    info!(
+        "listening on {}",
+        listener.local_addr().context("failed to get local addr")?
+    );
 
     axum::serve(
         listener,
@@ -73,7 +77,8 @@ pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Whatever> {
     )
     .with_graceful_shutdown(async { graceful_shutdown().await }.instrument(Span::current()))
     .await
-    .whatever_context("server died")
+    .context("server died")
+    .map_err(Report::into_dynamic)
 }
 
 async fn validate_access(
@@ -82,33 +87,27 @@ async fn validate_access(
     mut request: Request,
     next: Next,
 ) -> Result<Response, WebError> {
-    let Some(token) = cookie.get("access_token") else {
-        return Err(WebError::Anything {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Missing access token".to_string(),
-            location: location!(),
-        });
-    };
+    let token = cookie
+        .get("access_token")
+        .context("Mising access token")
+        .attach(StatusCode::UNAUTHORIZED)?;
 
     let res = verify_access_token(&state.oidc, token).await?;
-    let Some(client_id) = res.client_id() else {
-        return Err(WebError::Anything {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Client id missing".to_string(),
-            location: location!(),
-        });
-    };
+    let client_id = res
+        .client_id()
+        .context("Client id missing")
+        .attach(StatusCode::UNAUTHORIZED)?;
     if !res.active() || client_id.to_string() != state.config.oidc.client_id {
         info!(
             active = %res.active(),
             client_id = ?res.client_id(),
             "Discarded access attempt"
         );
-        return Err(WebError::Anything {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Invalid access token".to_string(),
-            location: location!(),
-        });
+        return Err(report!("Wrong client id or access token no longer active")
+            .attach(StatusCode::UNAUTHORIZED)
+            .attach(format!("Client id: {client_id:?}"))
+            .attach(PrintRootcauseChain::info())
+            .into());
     }
 
     request.extensions_mut().insert(AuthedUser {
@@ -125,13 +124,11 @@ async fn validate_access(
 async fn verify_access_token(
     oidc: &Oidc,
     access_token: &str,
-) -> Result<CoreTokenIntrospectionResponse, WebError> {
-    let res = oidc
-        .introspect(access_token.trim().to_string())
-        .context(OidcSnafu)
-        .await?;
-
-    Ok(res)
+) -> Result<CoreTokenIntrospectionResponse, Report> {
+    oidc.introspect(access_token.trim().to_string())
+        .await
+        .context("failed to introspect access token")
+        .map_err(Report::into_dynamic)
 }
 
 async fn graceful_shutdown() {

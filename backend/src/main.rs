@@ -3,7 +3,8 @@ use crate::oidc::Oidc;
 use clap::Parser;
 use clap::builder::Styles;
 use clap::builder::styling::AnsiColor;
-use snafu::Report;
+use rootcause::Report;
+use rootcause::prelude::ResultExt;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::signal::unix::{SignalKind, signal};
@@ -45,30 +46,20 @@ async fn main() {
         )
         .init();
 
+    if let Err(e) = main_impl().await {
+        error!("{e}")
+    }
+}
+
+async fn main_impl() -> Result<(), Report> {
     let args = CliArgs::parse();
 
-    let config = match std::fs::read_to_string(&args.config_path) {
-        Ok(content) => content,
-        Err(e) => {
-            error!(
-                path = %args.config_path.display(),
-                error = %Report::from_error(e),
-                "Error reading config file"
-            );
-            std::process::exit(1);
-        }
-    };
-    let config: Config = match toml::from_str(&config) {
-        Ok(config) => config,
-        Err(e) => {
-            error!(
-                path = %args.config_path.display(),
-                error = %Report::from_error(e),
-                "Error parsing config file"
-            );
-            std::process::exit(1);
-        }
-    };
+    let config = std::fs::read_to_string(&args.config_path)
+        .context("failed to read config file")
+        .attach(format!("path: {}", args.config_path.display()))?;
+    let config: Config = toml::from_str(&config)
+        .context("failed to parse config file")
+        .attach(format!("path: {}", args.config_path.display()))?;
 
     let mut current_backoff = Duration::from_secs(1);
     let shutdown_requested = CancellationToken::new();
@@ -76,13 +67,14 @@ async fn main() {
     let oidc = loop {
         if shutdown_requested.is_cancelled() {
             error!("Shutdown requested, exiting");
-            return;
+            return Ok(());
         }
-        match Oidc::build_new(config.oidc.clone(), &config.secrets).await {
+        let oidc = Oidc::build_new(config.oidc.clone(), &config.secrets);
+        match oidc.await.context("failed to build OIDC client") {
             Ok(oidc) => break oidc,
             Err(e) => {
                 error!(
-                    error = %Report::from_error(e),
+                    error = %e,
                     "Error building OIDC client"
                 );
                 backoff(&mut current_backoff, shutdown_requested.clone()).await;
@@ -95,7 +87,8 @@ async fn main() {
         server::start_server(config, oidc),
         shutdown_signal(shutdown_requested.clone())
     );
-    res.unwrap();
+    res.context("failed to run server")
+        .map_err(Report::into_dynamic)
 }
 
 pub async fn backoff(current_backoff: &mut Duration, shutdown_requested: CancellationToken) {

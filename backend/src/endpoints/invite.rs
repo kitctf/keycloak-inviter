@@ -1,13 +1,14 @@
 use crate::config::Secrets;
-use crate::error::{KeycloakSnafu, WebError};
+use crate::error::WebError;
 use crate::server::{AppState, AuthedUser};
 use axum::extract::State;
 use axum::{Extension, Json};
 use keycloak::types::TypeMap;
 use reqwest::Client;
+use rootcause::prelude::ResultExt;
+use rootcause::report;
 use serde::Deserialize;
-use snafu::{ResultExt, location};
-use tracing::info;
+use tracing::{info, warn};
 
 pub async fn invite_user(
     State(AppState { config, .. }): State<AppState>,
@@ -43,18 +44,23 @@ pub async fn invite_user(
             type_map,
         )
         .await
-        .context(KeycloakSnafu)?;
+        .context("keycloak invite failed")
+        .attach(format!("Email: {}", payload.email))
+        .attach(format!("First name: {:?}", payload.first_name))
+        .attach(format!("Last name: {:?}", payload.last_name))?;
 
     let result = result.into_response();
     if !result.status().is_success() {
-        return Err(WebError::Anything {
-            status: result.status(),
-            message: format!(
-                "Failed to invite user: {}",
+        return Err(report!("failed to invite user")
+            .attach(format!("Email: {}", payload.email))
+            .attach(format!("First name: {:?}", payload.first_name))
+            .attach(format!("Last name: {:?}", payload.last_name))
+            .attach(result.status())
+            .attach(format!(
+                "Message: {}",
                 result.text().await.unwrap_or("N/A".to_string())
-            ),
-            location: location!(),
-        });
+            ))
+            .into());
     }
 
     info!(
@@ -83,10 +89,16 @@ async fn hooks_invited_user(triggering: AuthedUser, target: InvitePayload, secre
         text += ")";
     }
 
-    let status = super::send_user_added_to_mattermost(triggering.user_name, text, secrets).await;
-
-    if status {
-        info!(status = %status, email = target.email, "Webhook sent successfully");
+    match super::send_user_added_to_mattermost(&triggering.user_name, text, secrets).await {
+        Err(e) => {
+            warn!(error=%e, "Failed to send invite to mattermost")
+        }
+        Ok(..) => {
+            info!(
+                email = target.email,
+                "Invite successfully sent to mattermost"
+            );
+        }
     }
 }
 

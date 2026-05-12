@@ -1,42 +1,36 @@
 use crate::config::Secrets;
-use crate::error::{KeycloakSnafu, WebError};
+use crate::error::{PrintRootcauseChain, WebError};
 use crate::server::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use keycloak::types::UserRepresentation;
 use reqwest::Client;
+use rootcause::prelude::ResultExt;
+use rootcause::report;
 use serde::Deserialize;
-use snafu::{ResultExt, location};
-use tracing::info;
+use tracing::{info, warn};
 
 pub async fn register_user(
     State(state): State<AppState>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<(), WebError> {
     let Some(config) = &state.config.register else {
-        return Err(WebError::Anything {
-            status: StatusCode::BAD_REQUEST,
-            message: "Register is not enabled".to_string(),
-            location: location!(),
-        });
+        return Err(report!("Register is not enabled")
+            .attach(StatusCode::BAD_REQUEST)
+            .into());
     };
 
     let supplied_token = &payload.token;
     let token = match config.tokens.get(supplied_token) {
         Some(token) => token,
         None => {
-            info!(
-                token = supplied_token,
-                email = payload.email,
-                username = payload.username,
-                "User submitted invalid token"
-            );
-            return Err(WebError::Anything {
-                status: StatusCode::BAD_REQUEST,
-                message: "Invalid token".to_string(),
-                location: location!(),
-            });
+            return Err(report!("Invalid token")
+                .attach(PrintRootcauseChain::info())
+                .attach(format!("Token: {}", supplied_token))
+                .attach(format!("Email: {}", payload.email))
+                .attach(format!("User: {}", payload.username))
+                .into());
         }
     };
 
@@ -60,18 +54,20 @@ pub async fn register_user(
             },
         )
         .await
-        .context(KeycloakSnafu)?;
+        .context("failed to add user to keycloak")?;
     let response = response.into_response();
 
     if !response.status().is_success() {
-        return Err(WebError::Anything {
-            status: response.status(),
-            message: format!(
-                "Failed to register user: {}",
+        return Err(report!("Failed to register user")
+            .attach(response.status())
+            .attach(format!("Token: {}", supplied_token))
+            .attach(format!("Email: {}", payload.email))
+            .attach(format!("User: {}", payload.username))
+            .attach(format!(
+                "Message: {}",
                 response.text().await.unwrap_or("N/A".to_string())
-            ),
-            location: location!(),
-        });
+            ))
+            .into());
     }
 
     hooks_self_registered(payload.clone(), &state.config.secrets).await;
@@ -97,7 +93,7 @@ pub async fn register_user(
             Some(payload.username.clone()), // username
         )
         .await
-        .context(KeycloakSnafu)?
+        .context("failed to retrieve created user from keycloak")?
         .into_iter()
         .next()
         .unwrap()
@@ -121,18 +117,20 @@ pub async fn register_user(
             None,
         )
         .await
-        .context(KeycloakSnafu)?;
+        .context("failed to send verify email")?;
     let response = response.into_response();
 
     if !response.status().is_success() {
-        return Err(WebError::Anything {
-            status: response.status(),
-            message: format!(
-                "Failed to send verify mail: {}",
+        return Err(report!("Failed to send verify mail")
+            .attach(response.status())
+            .attach(format!("Token: {}", supplied_token))
+            .attach(format!("Email: {}", payload.email))
+            .attach(format!("User: {}", payload.username))
+            .attach(format!(
+                "Message: {}",
                 response.text().await.unwrap_or("N/A".to_string())
-            ),
-            location: location!(),
-        });
+            ))
+            .into());
     }
 
     info!(
@@ -149,19 +147,20 @@ pub async fn register_user(
             created_user,
         )
         .await
-        .context(KeycloakSnafu)?;
+        .context("failed to add org membership")?;
 
     let response = response.into_response();
-
     if !response.status().is_success() {
-        return Err(WebError::Anything {
-            status: response.status(),
-            message: format!(
-                "Failed to add user to organization: {}",
+        return Err(report!("Failed to add user to organization")
+            .attach(response.status())
+            .attach(format!("Token: {}", supplied_token))
+            .attach(format!("Email: {}", payload.email))
+            .attach(format!("User: {}", payload.username))
+            .attach(format!(
+                "Message: {}",
                 response.text().await.unwrap_or("N/A".to_string())
-            ),
-            location: location!(),
-        });
+            ))
+            .into());
     }
 
     Ok(())
@@ -173,11 +172,16 @@ async fn hooks_self_registered(target: RegisterPayload, secrets: &Secrets) {
         target.username, target.email
     );
 
-    let status =
-        super::send_user_added_to_mattermost(String::from("Keycloak Inviter"), text, secrets).await;
-
-    if status {
-        info!(status = %status, email = target.email, "Webhook sent successfully");
+    match super::send_user_added_to_mattermost("Keycloak Inviter", text, secrets).await {
+        Err(e) => {
+            warn!(error=%e, "Failed to send self-registration to mattermost")
+        }
+        Ok(..) => {
+            info!(
+                email = target.email,
+                "Self-Registration successfully sent to mattermost"
+            );
+        }
     }
 }
 

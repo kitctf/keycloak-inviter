@@ -2,10 +2,7 @@ use crate::OidcConfig;
 use crate::config::Secrets;
 use derive_more::Display;
 use oauth2::basic::{BasicErrorResponseType, BasicRevocationErrorResponse};
-use oauth2::{
-    AccessToken, HttpClientError, IntrospectionUrl, PkceCodeVerifier, RequestTokenError,
-    StandardRevocableToken,
-};
+use oauth2::{AccessToken, IntrospectionUrl, PkceCodeVerifier, StandardRevocableToken};
 use openidconnect::core::{
     CoreAuthDisplay, CoreAuthPrompt, CoreAuthenticationFlow, CoreClient, CoreGenderClaim,
     CoreIdTokenClaims, CoreJsonWebKey, CoreJweContentEncryptionAlgorithm, CoreProviderMetadata,
@@ -17,115 +14,13 @@ use openidconnect::{
     OAuth2TokenResponse, PkceCodeChallenge, RedirectUrl, Scope, StandardErrorResponse,
     TokenResponse,
 };
-use snafu::{Location, OptionExt, ResultExt, Snafu, ensure};
+use rootcause::option_ext::OptionExt;
+use rootcause::prelude::ResultExt;
+use rootcause::{Report, report};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::debug;
-
-#[derive(Debug, Snafu)]
-pub enum OidcError {
-    #[snafu(display("Could not create http client at {location}"))]
-    HttpClientCreation {
-        source: reqwest::Error,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Could not parse issuer URL `{url}` at {location}"))]
-    IssuerUrlInvalid {
-        url: String,
-        source: url::ParseError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Could not parse redirect URL `{url}` at {location}"))]
-    RedirectUrlInvalid {
-        url: String,
-        source: url::ParseError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Could not parse introspection URL `{url}` at {location}"))]
-    IntrospectionUrlInvalid {
-        url: String,
-        source: url::ParseError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Could not fetch provider metadata at {location}"))]
-    ProviderMetadata {
-        source: openidconnect::DiscoveryError<HttpClientError<reqwest::Error>>,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("CSRF token mismatch (`{expected}` vs `{actual}`) at {location}"))]
-    InvalidCsrfToken {
-        expected: String,
-        actual: String,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Unknown flow id `{flow_id}` at {location}"))]
-    UnknownFlowId {
-        flow_id: OidcFlowId,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Unable to configure authentication token exchange at {location}"))]
-    AuthTokenExchangeConfig {
-        source: oauth2::ConfigurationError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Error during authentication token exchange request at {location}"))]
-    AuthTokenExchangeRequest {
-        source: RequestTokenError<
-            HttpClientError<reqwest::Error>,
-            StandardErrorResponse<BasicErrorResponseType>,
-        >,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Server returned no id token after token exchange at {location}"))]
-    NoIdTokenReceived {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Error verifying claims at {location}"))]
-    ClaimVerification {
-        source: openidconnect::ClaimsVerificationError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Error verifying signature at {location}"))]
-    SignatureVerification {
-        source: openidconnect::SignatureVerificationError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Could not hash access token at {location}"))]
-    AccessTokenHashing {
-        source: openidconnect::SigningError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Access token signature did not match expected at {location}"))]
-    AccessTokenSignatureVerification {
-        actual: String,
-        expected: String,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("Error during introspection request at {location}"))]
-    Introspect {
-        source: RequestTokenError<
-            HttpClientError<reqwest::Error>,
-            StandardErrorResponse<BasicErrorResponseType>,
-        >,
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
 
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Display)]
 pub struct OidcFlowId(String);
@@ -181,21 +76,21 @@ pub struct Oidc {
 }
 
 impl Oidc {
-    pub async fn build_new(oidc_config: OidcConfig, secrets: &Secrets) -> Result<Self, OidcError> {
+    pub async fn build_new(oidc_config: OidcConfig, secrets: &Secrets) -> Result<Self, Report> {
         let http_client = reqwest::ClientBuilder::new()
             // Following redirects opens the client up to SSRF vulnerabilities.
             .redirect(reqwest::redirect::Policy::none())
             .build()
-            .context(HttpClientCreationSnafu)?;
+            .context("Could not create http client")?;
 
         let provider_metadata = CoreProviderMetadata::discover_async(
-            IssuerUrl::new(oidc_config.issuer_url.clone()).context(IssuerUrlInvalidSnafu {
-                url: oidc_config.issuer_url.clone(),
-            })?,
+            IssuerUrl::new(oidc_config.issuer_url.clone())
+                .context("Could not parse issuer URL")
+                .attach(format!("issuer_url: {}", oidc_config.issuer_url))?,
             &http_client,
         )
         .await
-        .context(ProviderMetadataSnafu)?;
+        .context("Could not fetch provider metadata")?;
 
         let oidc_client = CoreClient::from_provider_metadata(
             provider_metadata,
@@ -203,18 +98,14 @@ impl Oidc {
             Some(ClientSecret::new(secrets.client_secret.to_string())),
         )
         .set_introspection_url(
-            IntrospectionUrl::new(oidc_config.introspect_url.to_string()).context(
-                IntrospectionUrlInvalidSnafu {
-                    url: oidc_config.introspect_url.to_string(),
-                },
-            )?,
+            IntrospectionUrl::new(oidc_config.introspect_url.to_string())
+                .context("Could not parse introspection URL")
+                .attach(format!("introspection_url: {}", oidc_config.introspect_url))?,
         )
         .set_redirect_uri(
-            RedirectUrl::new(oidc_config.redirect_url.to_string()).context(
-                RedirectUrlInvalidSnafu {
-                    url: oidc_config.redirect_url.to_string(),
-                },
-            )?,
+            RedirectUrl::new(oidc_config.redirect_url.to_string())
+                .context("Could not parse redirect URL")
+                .attach(format!("redirect_url: {}", oidc_config.redirect_url))?,
         );
 
         let pending_auths: Arc<Mutex<HashMap<OidcFlowId, PendingAuthentication>>> =
@@ -289,56 +180,63 @@ impl Oidc {
         flow_id: OidcFlowId,
         auth_token: &str,
         state: &str,
-    ) -> Result<OidcUser, OidcError> {
+    ) -> Result<OidcUser, Report> {
         let pending_auth = self
             .pending_auths
             .lock()
             .unwrap()
             .remove(&flow_id)
-            .context(UnknownFlowIdSnafu { flow_id })?;
+            .context("Unknown flow id")
+            .attach(format!("flow_id: {flow_id}"))
+            .attach("could not match callback to pending authentication")?;
 
-        ensure!(
-            pending_auth.csrf_token.secret() == state,
-            InvalidCsrfTokenSnafu {
-                expected: pending_auth.csrf_token.secret(),
-                actual: state
-            }
-        );
+        if pending_auth.csrf_token.secret() != state {
+            return Err(report!("CSRF token mismatch")
+                .attach(format!("expected: {}", pending_auth.csrf_token.secret()))
+                .attach(format!("actual: {state}")));
+        }
 
         let token_response = self
             .oidc_client
             .exchange_code(AuthorizationCode::new(auth_token.to_string()))
-            .context(AuthTokenExchangeConfigSnafu)?
+            .context("Unable to configure authentication token exchange")?
             .set_pkce_verifier(pending_auth.pkce_code_verifier)
             .request_async(&self.http_client)
             .await
-            .context(AuthTokenExchangeRequestSnafu)?;
+            .context("Error during authentication token exchange request")?;
 
         // Extract the ID token claims after verifying its authenticity and nonce.
-        let id_token = token_response.id_token().context(NoIdTokenReceivedSnafu)?;
+        let id_token = token_response
+            .id_token()
+            .context("Server returned no id token after token exchange")?;
         let claims: &CoreIdTokenClaims = id_token
             .claims(&self.oidc_client.id_token_verifier(), &pending_auth.nonce)
-            .context(ClaimVerificationSnafu)?;
+            .context("Error verifying claims")?;
+
+        println!("Got id token claims {:#?}", claims);
 
         // Verify the access token hash to ensure that the access token hasn't been substituted for
         // another user's.
         if let Some(expected_access_token_hash) = claims.access_token_hash() {
             let actual_access_token_hash = AccessTokenHash::from_token(
                 token_response.access_token(),
-                id_token.signing_alg().context(SignatureVerificationSnafu)?,
+                id_token
+                    .signing_alg()
+                    .context("Error verifying signature")?,
                 id_token
                     .signing_key(&self.oidc_client.id_token_verifier())
-                    .context(SignatureVerificationSnafu)?,
+                    .context("Error verifying signature")?,
             )
-            .context(AccessTokenHashingSnafu)?;
+            .context("Could not hash access token")?;
 
-            ensure!(
-                actual_access_token_hash == *expected_access_token_hash,
-                AccessTokenSignatureVerificationSnafu {
-                    actual: actual_access_token_hash.to_string(),
-                    expected: expected_access_token_hash.to_string()
-                }
-            );
+            if actual_access_token_hash != *expected_access_token_hash {
+                return Err(
+                    report!("Access token signature did not match expected".to_string())
+                        .attach(format!("actual: {:?}", actual_access_token_hash))
+                        .attach(format!("expected: {:?}", expected_access_token_hash))
+                        .into(),
+                );
+            }
         }
 
         let id = claims.subject().to_string();
@@ -347,6 +245,11 @@ impl Oidc {
             .map(|name| name.as_str())
             .unwrap_or("<not provided>")
             .to_string();
+
+        println!(
+            "Got access token claims {:#?}",
+            token_response.access_token()
+        );
 
         let user = OidcUser {
             id,
@@ -360,12 +263,13 @@ impl Oidc {
     pub async fn introspect(
         &self,
         access_token: String,
-    ) -> Result<CoreTokenIntrospectionResponse, OidcError> {
+    ) -> Result<CoreTokenIntrospectionResponse, Report> {
         let access_token = AccessToken::new(access_token);
         let req = self.oidc_client.introspect(&access_token);
-        req.request_async(&self.http_client)
+        Ok(req
+            .request_async(&self.http_client)
             .await
-            .context(IntrospectSnafu)
+            .context("Error during introspection request")?)
     }
 }
 
