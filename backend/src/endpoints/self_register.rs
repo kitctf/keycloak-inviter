@@ -25,7 +25,8 @@ pub async fn register_user(
     let token = match config.tokens.get(supplied_token) {
         Some(token) => token,
         None => {
-            return Err(report!("Invalid token")
+            return Err(report!("Invalid magic token")
+                .attach(StatusCode::BAD_REQUEST)
                 .attach(PrintRootcauseChain::info())
                 .attach(format!("Token: {}", supplied_token))
                 .attach(format!("Email: {}", payload.email))
