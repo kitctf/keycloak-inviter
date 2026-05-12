@@ -213,8 +213,6 @@ impl Oidc {
             .claims(&self.oidc_client.id_token_verifier(), &pending_auth.nonce)
             .context("Error verifying claims")?;
 
-        println!("Got id token claims {:#?}", claims);
-
         // Verify the access token hash to ensure that the access token hasn't been substituted for
         // another user's.
         if let Some(expected_access_token_hash) = claims.access_token_hash() {
@@ -245,11 +243,6 @@ impl Oidc {
             .map(|name| name.as_str())
             .unwrap_or("<not provided>")
             .to_string();
-
-        println!(
-            "Got access token claims {:#?}",
-            token_response.access_token()
-        );
 
         let user = OidcUser {
             id,

@@ -7,6 +7,7 @@ use rootcause::prelude::ResultExt;
 use rootcause::{Report, report};
 use serde_json::json;
 
+pub mod applications;
 pub mod auth;
 pub mod invite;
 pub mod self_register;

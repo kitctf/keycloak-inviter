@@ -8,7 +8,7 @@ use rootcause::prelude::ResultExt;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::signal::unix::{SignalKind, signal};
-use tokio::{join, select, signal};
+use tokio::{select, signal};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 use tracing_subscriber::layer::SubscriberExt;
@@ -83,9 +83,9 @@ async fn main_impl() -> Result<(), Report> {
         };
     };
 
-    let (res, _) = join!(
-        server::start_server(config, oidc),
-        shutdown_signal(shutdown_requested.clone())
+    let res = select!(
+        it = server::start_server(config, oidc) => { it },
+        _ = shutdown_signal(shutdown_requested.clone()) => { Ok(()) }
     );
     res.context("failed to run server")
         .map_err(Report::into_dynamic)

@@ -22,6 +22,8 @@ toml = "1.1.2"
 clap = { version = "4.6.0", features = ["derive"] }
 tokio-util = "0.7.18"
 rootcause = "0.12.1"
+jsonwebtoken = { version = "10.4.0", features = ["rust_crypto"] }
+serde_yaml = "0.9.33"
 
 [lints.rust]
 unsafe_code = { level = "deny", priority = 1 }

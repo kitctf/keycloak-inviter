@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::endpoints::applications::get_available_applications;
 use crate::endpoints::auth::{about_me, login_oidc_callback, login_redirect};
 use crate::endpoints::invite::invite_user;
 use crate::endpoints::self_register::register_user;
@@ -24,18 +25,6 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing::{Instrument, Span, info, warn};
 
-#[derive(Clone)]
-pub struct AppState {
-    pub config: Config,
-    pub oidc: Oidc,
-}
-
-#[derive(Debug, Clone)]
-pub struct AuthedUser {
-    pub user_name: String,
-    pub sub: String,
-}
-
 pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Report> {
     let state = AppState {
         config: config.clone(),
@@ -59,6 +48,10 @@ pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Report> {
         .route("/invite-user", post(invite_user).layer(authed.clone()))
         .route("/about-me", get(about_me).layer(authed.clone()))
         .route("/register", post(register_user))
+        .route(
+            "/applications",
+            get(get_available_applications).layer(authed.clone()),
+        )
         .layer(CorsLayer::very_permissive()) // TODO: Make nicer
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -110,12 +103,17 @@ async fn validate_access(
             .into());
     }
 
+    let access_token_content = jsonwebtoken::dangerous::insecure_decode(token)
+        .context("failed to parse resource access from access token")?
+        .claims;
+
     request.extensions_mut().insert(AuthedUser {
         user_name: res.username().unwrap_or("no username").to_string(),
         sub: res
             .sub()
             .expect("No subject in keycloak token response")
             .to_string(),
+        access_token_content,
     });
 
     Ok(next.run(request).await)
@@ -138,4 +136,17 @@ async fn graceful_shutdown() {
         _ = sigterm.recv() => warn!("Received SIGTERM"),
         _ = interrupt => warn!("Received SIGINT")
     }
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    pub config: Config,
+    pub oidc: Oidc,
+}
+
+#[derive(Debug, Clone)]
+pub struct AuthedUser {
+    pub user_name: String,
+    pub sub: String,
+    pub access_token_content: serde_json::Value,
 }
