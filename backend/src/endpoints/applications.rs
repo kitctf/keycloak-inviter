@@ -57,6 +57,7 @@ impl KitctfServices {
 struct KitctfService {
     name: String,
     url: String,
+    icon: Option<String>,
     #[serde(rename = "group")]
     _group: String,
     token_claims: Vec<KitctfTokenClaim>,
@@ -117,6 +118,7 @@ impl KitctfTokenClaim {
 pub struct JsonAllowdKitctfService {
     name: String,
     url: String,
+    icon: Option<String>,
 }
 
 impl From<KitctfService> for JsonAllowdKitctfService {
@@ -124,6 +126,7 @@ impl From<KitctfService> for JsonAllowdKitctfService {
         Self {
             name: value.name,
             url: value.url,
+            icon: value.icon,
         }
     }
 }

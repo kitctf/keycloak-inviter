@@ -2,52 +2,62 @@ services:
   - name: KITHUB
     url: https://hub.kitctf.de
     group: HUB
+    icon: kithub
     token_claims:
       - restricted-access in resource_access.hub.roles
   - name: KITHUB (Beta)
     url: https://hub.kitctf.de
     group: HUB
+    icon: kithub
     token_claims:
       - restricted-access in resource_access.hub-beta.roles
   - name: Account Console
     url: https://sso.kitctf.de/realms/kitctf/account/
     group: management
+    icon: keycloak
     token_claims:
       - view-profile in resource_access.account.roles
       - manage-account in resource_access.account.roles
   - name: Grafana
     url: https://grafana.noinfra.de
     group: gpnctf
+    icon: grafana
     token_claims:
       - restricted-access in resource_access.gpnctf-grafana.roles
   - name: Kubernetes
     url: https://github.com/kitctf/gpnctf-24-infra-kubernetes/
     group: gpnctf
+    icon: kubernetes
     token_claims:
       - restricted-access in resource_access.kubernetes.roles
   - name: Hedgedoc
     url: https://pad.kitctf.de
     group: tools
+    icon: hedgedoc
     token_claims:
       - restricted-access in resource_access.hedgedoc.roles
   - name: Mattermost
     url: https://chat.kitctf.de
     group: tools
+    icon: chat
     token_claims:
       - restricted-access in resource_access.mattermost.roles
   - name: Mitgliederverwaltung
     url: https://sso.kitctf.de
     group: management
+    icon: keycloak
     token_claims:
       - restricted-access in resource_access.security-admin-console.roles
   - name: User Einladen
     url: https://invite.kitctf.de
     group: management
+    icon: inviter
     token_claims:
       - restricted-access in resource_access.user-invitation.roles
   - name: Vaultwarden
     url: https://pass.kitctf.de
     group: secrets
+    icon: vaultwarden
     token_claims:
       - restricted-access in resource_access.vaultwarden.roles
   - name: Hashicorp Vault
@@ -58,5 +68,6 @@ services:
   - name: WikiJS
     url: https://wiki.kitctf.de
     group: tools
+    icon: wiki
     token_claims:
       - restricted-access in resource_access.wikijs.roles
