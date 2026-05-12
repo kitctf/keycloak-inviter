@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import InviteOrLoginView from '@/views/InviteOrLoginView.vue'
+import MainOrLoginView from '@/views/MainOrLoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 
 const router = createRouter({
@@ -7,10 +7,10 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'invite',
-      component: InviteOrLoginView,
+      name: 'home',
+      component: MainOrLoginView,
       meta: {
-        name: 'Invite',
+        name: 'Home',
       },
     },
     {

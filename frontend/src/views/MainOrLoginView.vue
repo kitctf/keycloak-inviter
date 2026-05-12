@@ -4,7 +4,7 @@
     <Tabs default-value="dashboard">
       <TabsList>
         <TabsTrigger value="dashboard"> Dashboard </TabsTrigger>
-        <TabsTrigger value="invite"> Invite </TabsTrigger>
+        <TabsTrigger value="invite" v-if="userInfo.canInvite"> Invite </TabsTrigger>
       </TabsList>
       <TabsContent value="dashboard">
         <AllowedApplications
@@ -13,7 +13,7 @@
           :allowed-applications="allowedApps"
         />
       </TabsContent>
-      <TabsContent value="invite">
+      <TabsContent value="invite" v-if="userInfo.canInvite">
         <InviteView :user-info="userInfo" />
       </TabsContent>
     </Tabs>

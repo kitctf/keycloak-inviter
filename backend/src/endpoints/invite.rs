@@ -1,7 +1,8 @@
 use crate::config::Secrets;
-use crate::error::WebError;
+use crate::error::{PrintRootcauseChain, WebError};
 use crate::server::{AppState, AuthedUser};
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::{Extension, Json};
 use keycloak::types::TypeMap;
 use reqwest::Client;
@@ -23,6 +24,16 @@ pub async fn invite_user(
         target_last_name = %payload.last_name.as_deref().unwrap_or("N/A"),
         "Inviting user"
     );
+
+    if !authed_user.can_invite {
+        return Err(report!("You have no permission to invite a user")
+            .attach(StatusCode::UNAUTHORIZED)
+            .attach(PrintRootcauseChain::info())
+            .attach(format!("user: {}", authed_user.sub))
+            .attach(format!("user name: {}", authed_user.user_name))
+            .attach(format!("target_email: {}", payload.email))
+            .into());
+    }
 
     hooks_invited_user(authed_user.clone(), payload.clone(), &config.secrets).await;
 

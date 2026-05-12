@@ -4,7 +4,7 @@ import {
   type AllowedApplication,
   AllowedApplicationSchema,
 } from '@/lib/types.ts'
-import { BACKEND_URL, fetchWithError } from '@/lib/fetching.ts'
+import { BACKEND_URL, FetchError, fetchWithError } from '@/lib/fetching.ts'
 
 export async function fetchAboutMe(): Promise<AboutMe | 'unauthorized'> {
   const response = await fetchWithError(
@@ -44,7 +44,7 @@ export async function fetchAddUser(payload: {
   email: string
   firstName?: string
   lastName?: string
-}): Promise<'success' | 'unauthorized'> {
+}): Promise<'success'> {
   const response = await fetchWithError(
     `${BACKEND_URL}/invite-user`,
     {
@@ -61,7 +61,7 @@ export async function fetchAddUser(payload: {
   if (response.status === 200) {
     return 'success'
   }
-  return 'unauthorized'
+  throw new FetchError('No permissions', response.status)
 }
 
 export async function fetchRegister(payload: {

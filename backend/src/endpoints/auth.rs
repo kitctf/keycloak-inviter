@@ -87,6 +87,7 @@ pub async fn about_me(
     Ok(Json(AboutMeResponse {
         sub: authed_user.sub,
         user_name: authed_user.user_name,
+        can_invite: authed_user.can_invite,
     }))
 }
 
@@ -101,4 +102,5 @@ pub struct OidcCallbackPayload {
 pub struct AboutMeResponse {
     sub: String,
     user_name: String,
+    can_invite: bool,
 }

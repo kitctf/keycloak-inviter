@@ -103,9 +103,10 @@ async fn validate_access(
             .into());
     }
 
-    let access_token_content = jsonwebtoken::dangerous::insecure_decode(token)
+    let access_token_content: serde_json::Value = jsonwebtoken::dangerous::insecure_decode(token)
         .context("failed to parse resource access from access token")?
         .claims;
+    let can_invite = can_invite(&access_token_content).unwrap_or(false);
 
     request.extensions_mut().insert(AuthedUser {
         user_name: res.username().unwrap_or("no username").to_string(),
@@ -114,6 +115,7 @@ async fn validate_access(
             .expect("No subject in keycloak token response")
             .to_string(),
         access_token_content,
+        can_invite,
     });
 
     Ok(next.run(request).await)
@@ -127,6 +129,17 @@ async fn verify_access_token(
         .await
         .context("failed to introspect access token")
         .map_err(Report::into_dynamic)
+}
+
+fn can_invite(access_token_content: &serde_json::Value) -> Result<bool, Report> {
+    Ok(access_token_content
+        .get("roles")
+        .context("no roles")?
+        .as_array()
+        .context("no roles arr")?
+        .iter()
+        .filter_map(|it| it.as_str())
+        .any(|it| it == "can-invite"))
 }
 
 async fn graceful_shutdown() {
@@ -149,4 +162,5 @@ pub struct AuthedUser {
     pub user_name: String,
     pub sub: String,
     pub access_token_content: serde_json::Value,
+    pub can_invite: bool,
 }

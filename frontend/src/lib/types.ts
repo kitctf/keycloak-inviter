@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const AboutMeSchema = z.object({
   sub: z.string(),
   userName: z.string(),
+  canInvite: z.boolean(),
 })
 
 export const AllowedApplicationSchema = z.object({

@@ -8,7 +8,7 @@
       <CardDescription>You apparently have the power</CardDescription>
     </CardHeader>
     <CardContent>
-      <form @submit="onSubmit" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-1">
+      <form @submit.prevent="onSubmit" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-1">
         <FormField v-slot="{ componentField }" name="email">
           <FormItem class="lg:col-span-2">
             <FormLabel>E-mail<span class="text-destructive-foreground -ml-1">*</span></FormLabel>
@@ -44,12 +44,13 @@
           Invite user
         </Button>
       </form>
-      <div
-        v-if="error"
-        class="bg-accent rounded-lg my-2 p-2 text-destructive-foreground whitespace-pre break-all"
-      >
-        {{ error }}
-      </div>
+      <Alert variant="destructive" v-if="error">
+        <LucideAlertCircle />
+        <AlertTitle>An error occurred</AlertTitle>
+        <AlertDescription class="break-all whitespace-pre leading-4 font-mono">
+          {{ error }}
+        </AlertDescription>
+      </Alert>
     </CardContent>
   </Card>
 </template>
@@ -64,12 +65,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { LucideAlertCircle, LucideLoaderCircle } from 'lucide-vue-next'
 import { nextTick, onMounted, ref, toRefs } from 'vue'
 import type { AboutMe } from '@/lib/types.ts'
-import { BACKEND_URL } from '@/lib/fetching.ts'
+import Alert from '@/components/ui/alert/Alert.vue'
+import AlertDescription from '@/components/ui/alert/AlertDescription.vue'
+import AlertTitle from '@/components/ui/alert/AlertTitle.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { LucideLoaderCircle } from 'lucide-vue-next'
 import { fetchAddUser } from '@/lib/network.ts'
 import { toTypedSchema } from '@vee-validate/zod'
 import { toast } from 'vue-sonner'
@@ -132,7 +135,6 @@ const onSubmit = form.handleSubmit(async (values) => {
       error.value = null
       return
     }
-    window.location.href = `${BACKEND_URL}/login`
   } finally {
     sendingInvite.value = false
   }
