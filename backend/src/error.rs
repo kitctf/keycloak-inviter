@@ -65,7 +65,13 @@ impl IntoResponse for WebError {
         }
 
         if let Some(status_code) = status_code {
-            (*status_code, error_message).into_response()
+            // Only give the main context for client errors
+            if status_code.is_client_error() {
+                let error_message = self.report.format_current_context().to_string();
+                (*status_code, error_message).into_response()
+            } else {
+                (*status_code, error_message).into_response()
+            }
         } else {
             warn!(%self.report, "error without status code during handling");
             (StatusCode::INTERNAL_SERVER_ERROR, error_message).into_response()
