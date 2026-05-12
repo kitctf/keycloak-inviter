@@ -17,6 +17,7 @@ export const AllowedApplicationSchema = z.object({
       'keycloak',
       'kithub',
       'kubernetes',
+      'vault',
       'vaultwarden',
       'wiki',
     ])

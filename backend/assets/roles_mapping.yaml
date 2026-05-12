@@ -63,6 +63,7 @@ services:
   - name: Hashicorp Vault
     url: https://vault.kitctf.de
     group: secrets
+    icon: vault
     token_claims:
       - restricted-access in resource_access.vault.roles
   - name: WikiJS
