@@ -1,10 +1,15 @@
 <template>
   <LoginView v-if="!userInfo" :fetching="fetchingLoginStatus" />
   <PageContainer v-else>
-    <Tabs default-value="dashboard">
+    <AllowedApplications
+      v-if="userInfo && allowedApps && !userInfo.canInvite"
+      :user-info="userInfo"
+      :allowed-applications="allowedApps"
+    />
+    <Tabs default-value="dashboard" v-if="userInfo.canInvite">
       <TabsList>
         <TabsTrigger value="dashboard"> Dashboard </TabsTrigger>
-        <TabsTrigger value="invite" v-if="userInfo.canInvite"> Invite </TabsTrigger>
+        <TabsTrigger value="invite"> Invite </TabsTrigger>
       </TabsList>
       <TabsContent value="dashboard">
         <AllowedApplications
@@ -13,7 +18,7 @@
           :allowed-applications="allowedApps"
         />
       </TabsContent>
-      <TabsContent value="invite" v-if="userInfo.canInvite">
+      <TabsContent value="invite">
         <InviteView :user-info="userInfo" />
       </TabsContent>
     </Tabs>
