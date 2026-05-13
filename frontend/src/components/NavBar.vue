@@ -4,7 +4,7 @@
       <div class="flex md:space-x-6 flex-grow">
         <div class="flex items-center justify-center flex-shrink-0">
           <LucideUserPlus class="h-[24px] flex-shrink-0" />
-          <span class="ml-2 font-semibold max-md:hidden">keycloak inviter</span>
+          <span class="ml-2 font-semibold max-md:hidden">Dashboard</span>
         </div>
       </div>
     </div>

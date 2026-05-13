@@ -3,7 +3,7 @@
     <Card>
       <CardHeader>
         <CardTitle>Unauthenticated</CardTitle>
-        <CardDescription>Log in to keycloak inviter</CardDescription>
+        <CardDescription>Log in to Dashboard</CardDescription>
       </CardHeader>
       <CardContent v-if="fetching">
         <LucideLoaderCircle class="animate-spin" />
