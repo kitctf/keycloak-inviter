@@ -2,9 +2,9 @@
   <PageContainer>
     <Card>
       <CardHeader>
-        <CardTitle>Register an account</CardTitle>
+        <CardTitle>Create an Account</CardTitle>
         <CardDescription>
-          You can create an account on your own if you have a magic token
+          You can create an account on your own — if you have a magic token
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -46,10 +46,12 @@
           <Button
             class="lg:col-span-2 w-fit cursor-pointer"
             type="submit"
-            :disabled="sendingRequest"
+            :disabled="
+              sendingRequest || !(form.isFieldDirty('email') || form.isFieldDirty('username'))
+            "
           >
             <LucideLoaderCircle class="animate-spin" v-show="false" />
-            Invite user
+            Create Account
           </Button>
         </form>
         <Alert variant="destructive" v-if="error">
@@ -59,15 +61,21 @@
             {{ error }}
           </AlertDescription>
         </Alert>
-        <Alert class="mt-2" v-if="!error && justRegistered">
+        <Alert class="mt-2 bg-green-50/20 border-green-300" v-if="!error && justRegistered">
           <LucideCheckCircle2 />
-          <AlertTitle>Success! An invitation has been sent.</AlertTitle>
+          <AlertTitle>
+            Success! An invitation has been sent to
+            <span class="gradient-primary">{{ justRegistered.email }}</span>
+          </AlertTitle>
           <AlertDescription>
-            <ol>
-              <li>Follow the steps in the E-Mail to create your account.</li>
+            <ol class="list-inside list-['-_']">
+              <li>
+                Follow the steps in the E-Mail to create your account. It might take a few minutes
+                to arrive.
+              </li>
               <li>
                 Afterwards, check out the
-                <RouterLink :to="{ path: '/' }" class="underline text-blue-400"
+                <RouterLink :to="{ path: '/' }" class="underline text-blue-400 font-bold"
                   >dashboard</RouterLink
                 >.
               </li>
@@ -106,7 +114,7 @@ import { z } from 'zod'
 
 const sendingRequest = ref(false)
 const error = ref<string | null>(null)
-const justRegistered = ref<boolean>(false)
+const justRegistered = ref<{ username: string; email: string } | null>(null)
 
 const formSchema = toTypedSchema(
   z.object({
@@ -148,27 +156,27 @@ onMounted(() => {
 const onSubmit = form.handleSubmit(async (values) => {
   sendingRequest.value = true
   error.value = null
-  justRegistered.value = false
+  justRegistered.value = null
+  const loadingToast = toast.loading('Registering...')
 
   try {
-    const response = await toast
-      .promise(fetchRegister(values), {
-        description: `Registering with ${values.email}`,
-        loading: 'Registering...',
-        success: () => 'Registered',
-        error: (data: unknown) => {
-          error.value = (data as Error).message || 'Unknown error'
-          return 'Register failed'
-        },
-      })!
-      .unwrap()
+    const response = await fetchRegister(values)
 
     if (response === 'success') {
-      form.resetForm()
       error.value = null
-      justRegistered.value = true
+      justRegistered.value = values
+      form.resetForm({
+        values: values,
+      })
+    }
+  } catch (e) {
+    if (e instanceof Error) {
+      error.value = e.message || 'Unknown error'
+    } else {
+      error.value = 'Unknown error'
     }
   } finally {
+    toast.dismiss(loadingToast)
     sendingRequest.value = false
   }
 })
