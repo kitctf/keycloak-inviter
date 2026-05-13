@@ -27,8 +27,7 @@
 
 <script setup lang="ts">
 import { type AboutMe, type AllowedApplication } from '@/lib/types.ts'
-import { fetchAboutMe, fetchApplications } from '@/lib/network.ts'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, toRefs } from 'vue'
 import AllowedApplications from './AllowedApplications.vue'
 import InviteView from '@/views/InviteView.vue'
 import LoginView from '@/views/LoginView.vue'
@@ -37,20 +36,18 @@ import Tabs from '@/components/ui/tabs/Tabs.vue'
 import TabsContent from '@/components/ui/tabs/TabsContent.vue'
 import TabsList from '@/components/ui/tabs/TabsList.vue'
 import TabsTrigger from '@/components/ui/tabs/TabsTrigger.vue'
+import { fetchApplications } from '@/lib/network.ts'
 
 const fetchingLoginStatus = ref<boolean>(true)
-const userInfo = ref<AboutMe | null>(null)
 const allowedApps = ref<AllowedApplication[] | null>(null)
+
+const props = defineProps<{
+  userInfo: AboutMe
+}>()
+const { userInfo } = toRefs(props)
 
 onMounted(async () => {
   try {
-    const aboutMe = await fetchAboutMe()
-    if (aboutMe !== 'unauthorized') {
-      userInfo.value = aboutMe
-    } else {
-      userInfo.value = null
-    }
-
     const allowedApplications = await fetchApplications()
     if (allowedApplications != 'unauthorized') {
       allowedApps.value = allowedApplications

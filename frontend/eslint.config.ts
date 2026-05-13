@@ -56,5 +56,16 @@ export default defineConfigWithVueTs(
         },
       ],
     },
-  }
+  },
+  {
+    files: ['src/components/ui/**/*.vue'],
+    rules: {
+      'vue/multi-word-component-names': 'off',
+      'vue/require-default-prop': 'off',
+      'vue/define-emits-declaration': 'off',
+      'vue/block-order': 'off',
+      'sort-imports': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 )
