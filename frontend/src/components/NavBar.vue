@@ -2,10 +2,13 @@
   <nav class="px-2 py-3 border-b border-border bg-background flex">
     <div class="container flex items-center justify-between max-w-7xl max-sm:px-0">
       <div class="flex md:space-x-6 grow">
-        <div class="flex items-center justify-center shrink-0">
+        <RouterLink
+          class="flex items-center justify-center shrink-0"
+          :to="{ path: userInfo ? '/' : undefined }"
+        >
           <LucideLandPlot class="h-6 shrink-0" />
           <span class="ml-2 font-semibold max-md:hidden">Portal</span>
-        </div>
+        </RouterLink>
       </div>
       <div v-if="userInfo">
         <DropdownMenu>
