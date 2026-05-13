@@ -1,4 +1,4 @@
-use crate::auth::add_auth_cookies;
+use crate::auth::{add_auth_cookies, delete_auth_cookies};
 use crate::error::{PrintRootcauseChain, WebError};
 use crate::oidc::OidcFlowId;
 use crate::server::{AppState, AuthedUser};
@@ -82,6 +82,16 @@ pub async fn about_me(
         user_name: authed_user.user_name,
         can_invite: authed_user.can_invite,
     }))
+}
+
+pub async fn logout(
+    State(state): State<AppState>,
+    cookies: CookieJar,
+) -> Result<(CookieJar, Redirect), WebError> {
+    Ok((
+        delete_auth_cookies(cookies),
+        Redirect::to(&state.config.service.frontend_url),
+    ))
 }
 
 #[derive(Deserialize)]

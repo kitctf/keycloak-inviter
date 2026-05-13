@@ -37,6 +37,15 @@ fn build_auth_cookie(name: &'static str, value: String) -> Cookie<'static> {
         .build()
 }
 
+pub fn delete_auth_cookies(jar: CookieJar) -> CookieJar {
+    let mut access_token = build_auth_cookie("access_token", "".to_string());
+    access_token.make_removal();
+    let mut refresh_token = build_auth_cookie("refresh_token", "".to_string());
+    refresh_token.make_removal();
+
+    jar.add(access_token).add(refresh_token)
+}
+
 pub async fn validate_access(
     state: &AppState,
     cookie: RequestCookie,

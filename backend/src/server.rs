@@ -2,7 +2,7 @@ use crate::auth::validate_access;
 use crate::config::Config;
 use crate::endpoints::applications::get_available_applications;
 use crate::endpoints::invite::invite_user;
-use crate::endpoints::login::{about_me, login_oidc_callback, login_redirect};
+use crate::endpoints::login::{about_me, login_oidc_callback, login_redirect, logout};
 use crate::endpoints::self_register::register_user;
 use crate::oidc::Oidc;
 use axum::extract::{Request, State};
@@ -41,6 +41,7 @@ pub async fn start_server(config: Config, oidc: Oidc) -> Result<(), Report> {
     let app = Router::new()
         .route("/login", get(login_redirect))
         .route("/login/callback", get(login_oidc_callback))
+        .route("/logout", post(logout))
         .route("/invite-user", post(invite_user).layer(authed.clone()))
         .route("/about-me", get(about_me).layer(authed.clone()))
         .route("/register", post(register_user))
