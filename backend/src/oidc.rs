@@ -2,7 +2,9 @@ use crate::OidcConfig;
 use crate::config::Secrets;
 use derive_more::Display;
 use oauth2::basic::{BasicErrorResponseType, BasicRevocationErrorResponse};
-use oauth2::{AccessToken, IntrospectionUrl, PkceCodeVerifier, StandardRevocableToken};
+use oauth2::{
+    AccessToken, IntrospectionUrl, PkceCodeVerifier, RefreshToken, StandardRevocableToken,
+};
 use openidconnect::core::{
     CoreAuthDisplay, CoreAuthPrompt, CoreAuthenticationFlow, CoreClient, CoreGenderClaim,
     CoreIdTokenClaims, CoreJsonWebKey, CoreJweContentEncryptionAlgorithm, CoreProviderMetadata,
@@ -247,10 +249,28 @@ impl Oidc {
         let user = OidcUser {
             id,
             name,
-            access_token: token_response.access_token().clone().into_secret(),
+            tokens: OidcTokenBundle {
+                access_token: token_response.access_token().clone(),
+                refresh_token: token_response.refresh_token().cloned(),
+            },
         };
 
         Ok(user)
+    }
+
+    pub async fn refresh_tokens(&self, refresh_token: String) -> Result<OidcTokenBundle, Report> {
+        let token_response = self
+            .oidc_client
+            .exchange_refresh_token(&RefreshToken::new(refresh_token))
+            .context("Unable to configure refresh token exchange")?
+            .request_async(&self.http_client)
+            .await
+            .context("Error during refresh token exchange request")?;
+
+        Ok(OidcTokenBundle {
+            access_token: token_response.access_token().clone(),
+            refresh_token: token_response.refresh_token().cloned(),
+        })
     }
 
     pub async fn introspect(
@@ -270,5 +290,56 @@ impl Oidc {
 pub struct OidcUser {
     pub id: String,
     pub name: String,
-    pub access_token: String,
+    pub tokens: OidcTokenBundle,
+}
+
+#[derive(Debug, Clone)]
+pub struct OidcTokenBundle {
+    pub access_token: AccessToken,
+    pub refresh_token: Option<RefreshToken>,
+}
+
+impl OidcTokenBundle {
+    pub fn access_token_content(&self) -> Result<serde_json::Value, Report> {
+        Ok(
+            jsonwebtoken::dangerous::insecure_decode(self.access_token.clone().into_secret())
+                .context("failed to parse access token")?
+                .claims,
+        )
+    }
+
+    pub fn username(&self) -> Result<String, Report> {
+        let content = self.access_token_content()?;
+
+        Self::try_get_string(&content, "nickname")
+            .or(Self::try_get_string(&content, "name"))
+            .or(Self::try_get_string(&content, "preferred_username"))
+            .context("failed to find 'nickname', 'name' or 'preferred_username'")
+            .map_err(Report::into_dynamic)
+    }
+
+    pub fn sub(&self) -> Result<String, Report> {
+        Self::try_get_string(&self.access_token_content()?, "sub")
+    }
+
+    pub fn can_invite(&self) -> Result<bool, Report> {
+        Ok(self
+            .access_token_content()?
+            .get("roles")
+            .context("no roles")?
+            .as_array()
+            .context("no roles arr")?
+            .iter()
+            .filter_map(|it| it.as_str())
+            .any(|it| it == "can-invite"))
+    }
+
+    fn try_get_string(value: &serde_json::Value, name: &str) -> Result<String, Report> {
+        Ok(value
+            .get(name)
+            .context(format!("Missing value for '{name}'"))?
+            .as_str()
+            .context(format!("Value for {name} is not a string"))?
+            .to_string())
+    }
 }

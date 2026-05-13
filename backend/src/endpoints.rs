@@ -8,8 +8,8 @@ use rootcause::{Report, report};
 use serde_json::json;
 
 pub mod applications;
-pub mod auth;
 pub mod invite;
+pub mod login;
 pub mod self_register;
 
 async fn get_keycloak_admin(

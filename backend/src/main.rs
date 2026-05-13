@@ -14,6 +14,7 @@ use tracing::{error, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+mod auth;
 mod config;
 mod endpoints;
 mod error;

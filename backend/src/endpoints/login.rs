@@ -1,3 +1,4 @@
+use crate::auth::add_auth_cookies;
 use crate::error::{PrintRootcauseChain, WebError};
 use crate::oidc::OidcFlowId;
 use crate::server::{AppState, AuthedUser};
@@ -68,15 +69,7 @@ pub async fn login_oidc_callback(
     );
 
     Ok((
-        cookies.remove("oidc_flow_id").add(
-            Cookie::build(("access_token", user.access_token))
-                .http_only(true)
-                .secure(true)
-                .expires(Expiration::Session)
-                .same_site(SameSite::Lax)
-                .path("/")
-                .build(),
-        ),
+        add_auth_cookies(cookies.remove("oidc_flow_id"), user.tokens),
         Redirect::temporary(&state.config.service.frontend_url),
     ))
 }
