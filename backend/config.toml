@@ -1,5 +1,5 @@
 [oidc]
-client_id = "user-invitation"
+client_id = "portal"
 issuer_url = "https://sso.kitctf.de/realms/kitctf"
 redirect_url = "http://localhost:3000/login/callback"
 introspect_url = "https://sso.kitctf.de/realms/kitctf/protocol/openid-connect/token/introspect"
