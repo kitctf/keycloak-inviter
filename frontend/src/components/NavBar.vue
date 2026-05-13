@@ -4,7 +4,7 @@
       <div class="flex md:space-x-6 grow">
         <div class="flex items-center justify-center shrink-0">
           <LucideLandPlot class="h-6 shrink-0" />
-          <span class="ml-2 font-semibold max-md:hidden">Dashboard</span>
+          <span class="ml-2 font-semibold max-md:hidden">Portal</span>
         </div>
       </div>
       <div v-if="userInfo">
