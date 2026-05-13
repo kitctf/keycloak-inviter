@@ -7,7 +7,7 @@
           You can create an account on your own — if you have a magic token
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent v-auto-animate>
         <form @submit="onSubmit" class="grid grid-cols-1 lg:grid-cols-2 gap-4 p-1">
           <FormField v-slot="{ componentField }" name="email">
             <FormItem>
@@ -110,6 +110,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { toast } from 'vue-sonner'
 import { useForm } from 'vee-validate'
 import { useRoute } from 'vue-router'
+import { vAutoAnimate } from '@formkit/auto-animate'
 import { z } from 'zod'
 
 const sendingRequest = ref(false)
