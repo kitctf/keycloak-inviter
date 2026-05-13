@@ -7,7 +7,7 @@ services:
     token_claims:
       - restricted-access in resource_access.hub.roles
   - name: KITHUB (Beta)
-    url: https://hub.kitctf.de
+    url: https://beta-hub.kitctf.de
     group: HUB
     icon: kithub
     description: Beta Hub
