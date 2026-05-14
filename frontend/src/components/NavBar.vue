@@ -1,6 +1,6 @@
 <template>
   <nav class="px-2 py-3 border-b border-border bg-background flex">
-    <div class="container flex items-center justify-between max-w-7xl max-sm:px-0">
+    <div class="container flex items-center justify-between max-w-7xl max-sm:px-0" v-auto-animate>
       <div class="flex md:space-x-6 grow">
         <RouterLink
           class="flex items-center justify-center shrink-0"
@@ -10,6 +10,7 @@
           <span class="ml-2 font-semibold max-md:hidden">Portal</span>
         </RouterLink>
       </div>
+      <DarkModeToggle :user-info="userInfo" class="mr-2" />
       <div v-if="userInfo">
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
@@ -49,6 +50,7 @@ import { LucideExternalLink, LucideLandPlot, LucideLogOut, LucideUser } from 'lu
 import type { AboutMe } from '@/lib/types'
 import { BACKEND_URL } from '@/lib/fetching'
 import Button from './ui/button/Button.vue'
+import DarkModeToggle from './DarkModeToggle.vue'
 import DropdownMenu from './ui/dropdown-menu/DropdownMenu.vue'
 import DropdownMenuContent from './ui/dropdown-menu/DropdownMenuContent.vue'
 import DropdownMenuItem from './ui/dropdown-menu/DropdownMenuItem.vue'
@@ -56,6 +58,7 @@ import DropdownMenuLabel from './ui/dropdown-menu/DropdownMenuLabel.vue'
 import DropdownMenuSeparator from './ui/dropdown-menu/DropdownMenuSeparator.vue'
 import DropdownMenuTrigger from './ui/dropdown-menu/DropdownMenuTrigger.vue'
 import { toRefs } from 'vue'
+import { vAutoAnimate } from '@formkit/auto-animate'
 
 const props = defineProps<{
   userInfo?: AboutMe
