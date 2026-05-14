@@ -1,5 +1,5 @@
 <template>
-  <Button variant="outline" @click="next()" size="icon">
+  <Button variant="outline" @click="next()" size="icon" class="cursor-pointer">
     <LucideMoon
       class="h-[1.2rem] w-[1.2rem] transition-all"
       :class="[mode == 'dark' ? 'scale-100' : 'scale-0']"
