@@ -53,7 +53,7 @@ services:
     url: https://sso.kitctf.de
     group: management
     icon: keycloak
-    description: Manage KIT member accounts
+    description: Manage KITCTF member accounts
     token_claims:
       - restricted-access in resource_access.security-admin-console.roles
   - name: User Einladen
