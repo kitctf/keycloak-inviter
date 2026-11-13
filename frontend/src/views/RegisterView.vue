@@ -13,9 +13,9 @@
             <FormItem>
               <FormLabel>E-mail<span class="text-destructive-foreground -ml-1">*</span></FormLabel>
               <FormControl>
-                <Input type="text" placeholder="foo@kitctf.de" v-bind="componentField" />
+                <Input type="text" placeholder="mail@example.com" v-bind="componentField" />
               </FormControl>
-              <FormDescription>The email address</FormDescription>
+              <FormDescription>Your email address</FormDescription>
               <FormMessage />
             </FormItem>
           </FormField>
